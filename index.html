@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>나의 CCM 아카이브 🎵</title>
+    <title>cnation CCM 아카이브 🎵</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -12,9 +12,23 @@
 <body class="bg-gray-100 min-h-screen font-sans text-gray-800 pb-20">
 
     <div class="max-w-2xl mx-auto pt-6 px-4">
-        <div class="bg-indigo-600 text-white p-6 rounded-2xl shadow-lg mb-6 text-center">
-            <h1 class="text-3xl font-bold mb-2">나의 CCM 아카이브 🎵</h1>
-            <p class="text-indigo-200">은혜와 찬양의 기록 (cnation-ccm-list)</p>
+
+        <div
+            class="relative rounded-2xl shadow-lg mb-8 overflow-hidden bg-gray-800 flex items-center justify-center min-h-[180px]">
+            <div class="absolute inset-0 bg-cover bg-center bg-no-repeat"
+                style="background-image: url('./cnation-ccm.png');"></div>
+
+            <div class="absolute inset-0 bg-black/40 backdrop-blur-[2px]"></div>
+
+            <div class="relative z-10 p-6 text-center w-full">
+                <h1
+                    class="text-4xl sm:text-5xl font-extrabold text-white mb-2 tracking-widest drop-shadow-lg uppercase">
+                    cnation CCM
+                </h1>
+                <p class="text-gray-100 text-sm tracking-widest drop-shadow-md font-medium">
+                    은혜와 찬양의 기록
+                </p>
+            </div>
         </div>
 
         <div class="bg-white rounded-2xl shadow-sm p-4 mb-8">
@@ -105,7 +119,6 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        // updateDoc 추가!
         import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
@@ -126,7 +139,7 @@
 
         let globalSongs = [];
         let unsubscribe = null;
-        const ADMIN_PASSWORD = "1257"; // 팀장님 전용 비밀번호
+        const ADMIN_PASSWORD = "1257";
 
         document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
 
@@ -259,7 +272,7 @@
                 if (videoId) ytEmbed = `<iframe class="w-full aspect-video mb-4 rounded-lg" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
             }
 
-            let audioPlayer = song.mp3Url ? `<audio controls class="w-full mt-2 mb-4"><source src="${song.mp3Url}" type="audio/mp3"></audio>` : '';
+            let audioPlayer = song.mp3Url ? `<audio controls class="w-full mt-2 mb-4 px-4"><source src="${song.mp3Url}" type="audio/mp3"></audio>` : '';
             const dateStr = song.creationDate ? song.creationDate.split('-').join('. ') + '.' : '';
 
             const contentHtml = `
@@ -296,7 +309,7 @@
             document.getElementById('modalContent').innerHTML = '';
         };
 
-        // 4. 삭제 기능 (비밀번호 확인)
+        // 4. 삭제 기능
         window.deleteSong = async (id) => {
             const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
             if (pwd !== ADMIN_PASSWORD) {
@@ -310,7 +323,7 @@
             }
         };
 
-        // 5. 수정 모드 진입 (비밀번호 확인)
+        // 5. 수정 모드 진입
         window.editSong = (id) => {
             const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
             if (pwd !== ADMIN_PASSWORD) {
@@ -364,7 +377,7 @@
             document.getElementById('modalContent').innerHTML = editHtml;
         };
 
-        // 6. 수정 사항 저장 로직
+        // 6. 수정 사항 저장
         window.saveEdit = async (id) => {
             const song = globalSongs.find(s => s.id === id);
             if (!song) return;
@@ -382,7 +395,7 @@
             const mp3File = document.getElementById('editMp3').files[0];
 
             if (!title || !creationDate) {
-                alert("제목과 제작일은 지울 수 없습니다!");
+                alert("제목과 제작일은 필수입니다!");
                 return;
             }
 
@@ -390,7 +403,6 @@
             document.getElementById('editStatus').classList.remove('hidden');
 
             try {
-                // 새 파일이 선택되었으면 업로드 후 URL 변경, 아니면 기존 URL 유지
                 let imageUrl = song.imageUrl;
                 if (imageFile) {
                     const imageRef = ref(storage, `${collectionName}/images/${Date.now()}_${imageFile.name}`);
@@ -419,7 +431,7 @@
                 });
 
                 alert("성공적으로 수정되었습니다! ✨");
-                closeModal(); // 저장 완료 후 모달창 닫기 (메인 리스트는 자동 새로고침 됨)
+                closeModal();
             } catch (error) {
                 console.error("수정 에러:", error);
                 alert("수정 중 오류가 발생했습니다.");
