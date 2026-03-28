@@ -24,7 +24,17 @@
         </div>
 
         <div class="bg-white rounded-2xl shadow-sm p-4 mb-8">
-            <h2 class="text-lg font-bold text-gray-700 mb-4 px-2">전체 곡 목록</h2>
+            <div class="flex justify-between items-center mb-4 px-2">
+                <h2 class="text-lg font-bold text-gray-700">전체 곡 목록</h2>
+                <select id="sortSelect"
+                    class="text-xs border border-gray-300 text-gray-600 py-1 px-2 rounded-lg focus:ring-2 focus:ring-indigo-400 bg-gray-50 outline-none cursor-pointer">
+                    <option value="creationDate_desc">최신 제작일순 🔽</option>
+                    <option value="creationDate_asc">오래된 제작일순 🔼</option>
+                    <option value="title_asc">제목 가나다순 🔼</option>
+                    <option value="title_desc">제목 역순 🔽</option>
+                    <option value="creator_asc">작사/작곡자순 🔼</option>
+                </select>
+            </div>
             <div id="songList" class="space-y-3">
                 <p class="text-center text-gray-400 py-4">데이터를 불러오는 중입니다...</p>
             </div>
@@ -33,20 +43,28 @@
         <div class="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
             <h2 class="text-lg font-bold text-gray-700 mb-4">새로운 곡 등록하기 ➕</h2>
             <div class="grid grid-cols-1 gap-4">
+
                 <div class="flex gap-2">
                     <select id="typeInput"
-                        class="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 bg-gray-50 text-sm">
+                        class="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 bg-gray-50 text-sm outline-none">
                         <option value="창작곡">창작곡</option>
                         <option value="커버송">커버송</option>
                     </select>
                     <input type="text" id="titleInput" placeholder="곡 제목 (예: 나를 부르신 이유)"
-                        class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm">
+                        class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none">
                 </div>
 
-                <input type="text" id="creatorInput" placeholder="작사/작곡 (예: 문명국)"
-                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm">
+                <div class="flex gap-2">
+                    <input type="text" id="creatorInput" placeholder="작사/작곡 (예: 문명국)"
+                        class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none">
+                    <div class="relative w-36">
+                        <input type="date" id="dateInput" title="곡 제작일"
+                            class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm text-gray-600 bg-gray-50 outline-none">
+                    </div>
+                </div>
+
                 <input type="text" id="youtubeInput" placeholder="유튜브 주소 링크"
-                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm">
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none">
 
                 <div class="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg space-y-3">
                     <div>
@@ -64,11 +82,11 @@
                 </div>
 
                 <textarea id="descInput" rows="2" placeholder="곡 설명 (설교 본문, 핵심 메시지 등)"
-                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm"></textarea>
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none"></textarea>
                 <textarea id="lyricsInput" rows="5" placeholder="가사 (Verse, Chorus 등 줄바꿈 유지)"
-                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm"></textarea>
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none"></textarea>
                 <textarea id="promptInput" rows="2" placeholder="제작 정보 (Suno 프롬프트, 스타일 등)"
-                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm"></textarea>
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none"></textarea>
 
                 <button id="addBtn"
                     class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-md mt-2">
@@ -111,24 +129,22 @@
         const collectionName = "cnation-ccm-list";
 
         let globalSongs = [];
+        let unsubscribe = null; // 실시간 업데이트 연결을 제어하기 위한 변수
 
-        // 날짜 변환 함수
-        function formatDate(timestamp) {
-            if (!timestamp) return "";
-            const date = timestamp.toDate();
-            return `${date.getFullYear()}. ${String(date.getMonth() + 1).padStart(2, '0')}. ${String(date.getDate()).padStart(2, '0')}.`;
-        }
+        // 페이지 로딩 시 달력 기본값을 오늘 날짜로 세팅
+        document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
 
         // 1. 등록 로직
         document.getElementById('addBtn').addEventListener('click', async () => {
             const title = document.getElementById('titleInput').value;
             const type = document.getElementById('typeInput').value;
             const creator = document.getElementById('creatorInput').value;
+            const creationDate = document.getElementById('dateInput').value;
             const imageFile = document.getElementById('imageInput').files[0];
             const mp3File = document.getElementById('mp3Input').files[0];
 
-            if (!title || !imageFile) {
-                alert('곡 제목과 타이틀 이미지는 필수입니다!');
+            if (!title || !imageFile || !creationDate) {
+                alert('곡 제목, 타이틀 이미지, 그리고 제작일은 필수입니다!');
                 return;
             }
 
@@ -151,17 +167,29 @@
                     title: title,
                     type: type,
                     creator: creator,
+                    creationDate: creationDate,
                     youtubeUrl: document.getElementById('youtubeInput').value,
                     desc: document.getElementById('descInput').value,
                     lyrics: document.getElementById('lyricsInput').value,
                     prompt: document.getElementById('promptInput').value,
                     imageUrl: imageUrl,
                     mp3Url: mp3Url,
-                    createdAt: serverTimestamp() // 서버 시간 기록
+                    createdAt: serverTimestamp()
                 });
 
                 alert("성공적으로 곡이 등록되었습니다! 🎉");
-                location.reload();
+                document.getElementById('addBtn').classList.remove('hidden');
+                document.getElementById('uploadStatus').classList.add('hidden');
+
+                // 폼 초기화
+                document.getElementById('titleInput').value = '';
+                document.getElementById('youtubeInput').value = '';
+                document.getElementById('descInput').value = '';
+                document.getElementById('lyricsInput').value = '';
+                document.getElementById('promptInput').value = '';
+                document.getElementById('imageInput').value = '';
+                document.getElementById('mp3Input').value = '';
+
             } catch (error) {
                 console.error("업로드 에러:", error);
                 alert("업로드 중 에러가 발생했습니다.");
@@ -170,49 +198,68 @@
             }
         });
 
-        // 2. 실시간 최신순 불러오기
-        const q = query(collection(db, collectionName), orderBy("createdAt", "desc"));
-        onSnapshot(q, (snapshot) => {
-            const listDiv = document.getElementById('songList');
-            listDiv.innerHTML = '';
-            globalSongs = [];
-
-            if (snapshot.empty) {
-                listDiv.innerHTML = '<p class="text-center text-gray-400 py-4">등록된 곡이 없습니다.</p>';
-                return;
+        // 2. 실시간 불러오기 및 정렬 로직
+        function loadSongs(sortField, sortDirection) {
+            // 이전에 연결된 데이터 스트림이 있다면 끊어줍니다. (중복 방지)
+            if (unsubscribe) {
+                unsubscribe();
             }
 
-            snapshot.forEach((docSnap) => {
-                const data = docSnap.data();
-                const id = docSnap.id;
-                globalSongs.push({ id, ...data });
+            const q = query(collection(db, collectionName), orderBy(sortField, sortDirection));
 
-                const tagColor = data.type === '창작곡' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
-                const dateStr = formatDate(data.createdAt);
+            unsubscribe = onSnapshot(q, (snapshot) => {
+                const listDiv = document.getElementById('songList');
+                listDiv.innerHTML = '';
+                globalSongs = [];
 
-                const itemHtml = `
-                    <div onclick="openModal('${id}')" class="flex items-center p-3 bg-white border border-gray-100 rounded-xl hover:shadow-md cursor-pointer transition">
-                        <img src="${data.imageUrl}" class="w-16 h-16 rounded-lg object-cover shadow-sm mr-4" alt="cover">
-                        <div class="flex-1">
-                            <div class="flex items-center justify-between mb-0.5">
-                                <h3 class="font-bold text-gray-800 text-base line-clamp-1">${data.title}</h3>
-                                <span class="text-[10px] text-gray-400">${dateStr}</span>
+                if (snapshot.empty) {
+                    listDiv.innerHTML = '<p class="text-center text-gray-400 py-4">등록된 곡이 없습니다.</p>';
+                    return;
+                }
+
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const id = docSnap.id;
+                    globalSongs.push({ id, ...data });
+
+                    const tagColor = data.type === '창작곡' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
+
+                    const dateStr = data.creationDate ? data.creationDate.split('-').join('. ') + '.' : '';
+
+                    const itemHtml = `
+                        <div onclick="openModal('${id}')" class="flex items-center p-3 bg-white border border-gray-100 rounded-xl hover:shadow-md cursor-pointer transition">
+                            <img src="${data.imageUrl}" class="w-16 h-16 rounded-lg object-cover shadow-sm mr-4" alt="cover">
+                            <div class="flex-1">
+                                <div class="flex items-center justify-between mb-0.5">
+                                    <h3 class="font-bold text-gray-800 text-base line-clamp-1">${data.title}</h3>
+                                    <span class="text-[10px] text-gray-400 font-medium">${dateStr}</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${tagColor} mr-2">${data.type}</span>
+                                    <span class="text-xs text-gray-500">${data.creator}</span>
+                                </div>
                             </div>
-                            <div class="flex items-center">
-                                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${tagColor} mr-2">${data.type}</span>
-                                <span class="text-xs text-gray-500">${data.creator}</span>
+                            <div class="w-8 flex justify-end text-indigo-400">
+                                <i class="fas fa-chevron-right"></i>
                             </div>
                         </div>
-                        <div class="w-8 flex justify-end text-indigo-400">
-                            <i class="fas fa-chevron-right"></i>
-                        </div>
-                    </div>
-                `;
-                listDiv.innerHTML += itemHtml;
+                    `;
+                    listDiv.innerHTML += itemHtml;
+                });
             });
+        }
+
+        // 초기 로딩 시 '제작일 최신순'으로 세팅
+        loadSongs('creationDate', 'desc');
+
+        // 정렬 옵션이 바뀔 때마다 새로운 기준으로 데이터 불러오기
+        document.getElementById('sortSelect').addEventListener('change', (e) => {
+            const selectedValue = e.target.value;
+            const [field, direction] = selectedValue.split('_'); // 'creationDate_desc' -> ['creationDate', 'desc'] 로 분리
+            loadSongs(field, direction);
         });
 
-        // 3. 모달 제어
+        // 3. 모달 제어 (기존과 동일)
         window.openModal = (id) => {
             const song = globalSongs.find(s => s.id === id);
             if (!song) return;
@@ -224,14 +271,14 @@
             }
 
             let audioPlayer = song.mp3Url ? `<audio controls class="w-full mt-2 mb-4"><source src="${song.mp3Url}" type="audio/mp3"></audio>` : '';
-            const dateStr = formatDate(song.createdAt);
+            const dateStr = song.creationDate ? song.creationDate.split('-').join('. ') + '.' : '';
 
             const contentHtml = `
                 <div><img src="${song.imageUrl}" class="w-full aspect-square object-cover" alt="cover"></div>
                 <div class="p-6">
                     <div class="flex justify-between items-start mb-1">
                         <h2 class="text-2xl font-bold text-gray-800">${song.title}</h2>
-                        <span class="text-xs text-gray-400 mt-2">${dateStr} 제작</span>
+                        <span class="text-xs text-gray-500 mt-2 font-medium">${dateStr} 제작</span>
                     </div>
                     <p class="text-sm text-gray-500 mb-4">작사/작곡: ${song.creator} | ${song.type}</p>
                     
@@ -260,7 +307,7 @@
         };
 
         window.deleteSong = async (id) => {
-            if (confirm("이 곡의 기록을 삭제하시겠습니까?")) {
+            if (confirm("이 곡의 기록을 삭제하시겠습니까? (저장소의 파일도 함께 삭제하는 기능은 추후 업데이트 됩니다)")) {
                 await deleteDoc(doc(db, collectionName, id));
                 closeModal();
             }
