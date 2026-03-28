@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>나의 CCM 아카이브 🎵</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* 모달창 스크롤을 위한 설정 */
+        .modal-content {
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 min-h-screen font-sans text-gray-800 pb-20">
+
+    <div class="max-w-2xl mx-auto pt-6 px-4">
+        <div class="bg-indigo-600 text-white p-6 rounded-2xl shadow-lg mb-6 text-center">
+            <h1 class="text-3xl font-bold mb-2">나의 CCM 아카이브 🎵</h1>
+            <p class="text-indigo-200">은혜와 찬양의 기록 (cnation-ccm-list)</p>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm p-4 mb-8">
+            <h2 class="text-lg font-bold text-gray-700 mb-4 px-2">전체 곡 목록</h2>
+            <div id="songList" class="space-y-3">
+                <p class="text-center text-gray-400 py-4">데이터를 불러오는 중입니다...</p>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm p-6 border border-gray-200">
+            <h2 class="text-lg font-bold text-gray-700 mb-4">새로운 곡 등록하기 ➕</h2>
+            <div class="grid grid-cols-1 gap-4">
+                <div class="flex gap-2">
+                    <select id="typeInput"
+                        class="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 bg-gray-50">
+                        <option value="창작곡">창작곡</option>
+                        <option value="커버송">커버송</option>
+                    </select>
+                    <input type="text" id="titleInput" placeholder="곡 제목 (예: 나를 부르신 이유)"
+                        class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400">
+                </div>
+
+                <input type="text" id="creatorInput" placeholder="작사/작곡 (예: 문명국)"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400">
+                <input type="text" id="youtubeInput" placeholder="유튜브 주소 링크"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400">
+
+                <div class="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1">🖼️ 타이틀 이미지 (필수)</label>
+                        <input type="file" id="imageInput" accept="image/*"
+                            class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-600 mb-1">🎵 MP3 음원 (선택)</label>
+                        <input type="file" id="mp3Input" accept="audio/mp3"
+                            class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                    </div>
+                </div>
+
+                <textarea id="descInput" rows="2" placeholder="곡 설명 (설교 본문, 핵심 메시지 등)"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400"></textarea>
+                <textarea id="lyricsInput" rows="5" placeholder="가사 (Verse, Chorus 등 줄바꿈 유지)"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400"></textarea>
+                <textarea id="promptInput" rows="2" placeholder="제작 정보 (Suno 프롬프트, 스타일 등)"
+                    class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400"></textarea>
+
+                <button id="addBtn"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-md mt-2">
+                    업로드 및 등록하기
+                </button>
+                <p id="uploadStatus" class="text-sm text-center text-indigo-600 font-bold hidden">업로드 중입니다... 잠시만 기다려주세요
+                    ⏳</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="detailModal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl w-full max-w-lg modal-content shadow-2xl overflow-hidden relative">
+            <button onclick="closeModal()"
+                class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 bg-white rounded-full p-1 shadow">
+                <i class="fas fa-times text-xl px-2"></i>
+            </button>
+            <div id="modalContent">
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        // 이미지와 MP3 저장을 위한 Storage 추가!
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
+
+        // ★★★ 팀장님의 진짜 파이어베이스 정보로 수정하세요 ★★★
+        const firebaseConfig = {
+            apiKey: "AIzaSyCTwOAC_LrrKH8CKepUOTf0pyd9qRv4y_8",
+            authDomain: "cnation-project.firebaseapp.com",
+            projectId: "cnation-project",
+            storageBucket: "cnation-project.firebasestorage.app",
+            messagingSenderId: "1004154104261",
+            appId: "1:1004154104261:web:0eac4c7ded38262ae5c3ac",
+            measurementId: "G-7PW1NSP5EQ"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+
+        // 네이밍 룰 적용 (DB 컬렉션 이름)
+        const collectionName = "cnation-ccm-list";
+
+        let globalSongs = []; // 모달창에서 데이터를 찾기 위한 전역 변수
+
+        // 1. 등록 버튼 클릭 (업로드 로직)
+        document.getElementById('addBtn').addEventListener('click', async () => {
+            const title = document.getElementById('titleInput').value;
+            const type = document.getElementById('typeInput').value;
+            const creator = document.getElementById('creatorInput').value;
+            const imageFile = document.getElementById('imageInput').files[0];
+            const mp3File = document.getElementById('mp3Input').files[0];
+
+            if (!title || !imageFile) {
+                alert('곡 제목과 타이틀 이미지는 필수입니다!');
+                return;
+            }
+
+            // 버튼 숨기고 업로드 중 표시
+            document.getElementById('addBtn').classList.add('hidden');
+            document.getElementById('uploadStatus').classList.remove('hidden');
+
+            try {
+                // 이미지 업로드
+                const imageRef = ref(storage, `${collectionName}/images/${Date.now()}_${imageFile.name}`);
+                await uploadBytes(imageRef, imageFile);
+                const imageUrl = await getDownloadURL(imageRef);
+
+                // MP3 업로드 (선택)
+                let mp3Url = "";
+                if (mp3File) {
+                    const mp3Ref = ref(storage, `${collectionName}/audio/${Date.now()}_${mp3File.name}`);
+                    await uploadBytes(mp3Ref, mp3File);
+                    mp3Url = await getDownloadURL(mp3Ref);
+                }
+
+                // Firestore DB에 데이터 저장
+                await addDoc(collection(db, collectionName), {
+                    title: title,
+                    type: type,
+                    creator: creator,
+                    youtubeUrl: document.getElementById('youtubeInput').value,
+                    desc: document.getElementById('descInput').value,
+                    lyrics: document.getElementById('lyricsInput').value,
+                    prompt: document.getElementById('promptInput').value,
+                    imageUrl: imageUrl,
+                    mp3Url: mp3Url,
+                    createdAt: new Date()
+                });
+
+                alert("성공적으로 곡이 등록되었습니다! 🎉");
+                // 입력창 초기화 후 새로고침
+                location.reload();
+            } catch (error) {
+                console.error("업로드 에러:", error);
+                alert("업로드 중 에러가 발생했습니다.");
+                document.getElementById('addBtn').classList.remove('hidden');
+                document.getElementById('uploadStatus').classList.add('hidden');
+            }
+        });
+
+        // 2. 곡 리스트 실시간 불러오기
+        const q = query(collection(db, collectionName), orderBy("createdAt", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const listDiv = document.getElementById('songList');
+            listDiv.innerHTML = '';
+            globalSongs = [];
+
+            if (snapshot.empty) {
+                listDiv.innerHTML = '<p class="text-center text-gray-400 py-4">등록된 곡이 없습니다. 아래에서 첫 곡을 올려주세요!</p>';
+                return;
+            }
+
+            snapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const id = docSnap.id;
+                globalSongs.push({ id, ...data });
+
+                const tagColor = data.type === '창작곡' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
+
+                const itemHtml = `
+                    <div onclick="openModal('${id}')" class="flex items-center p-3 bg-white border border-gray-100 rounded-xl hover:shadow-md cursor-pointer transition">
+                        <img src="${data.imageUrl}" class="w-16 h-16 rounded-lg object-cover shadow-sm mr-4" alt="cover">
+                        <div class="flex-1">
+                            <h3 class="font-bold text-gray-800 text-lg line-clamp-1">${data.title}</h3>
+                            <div class="flex items-center mt-1">
+                                <span class="text-[10px] font-bold px-2 py-0.5 rounded ${tagColor} mr-2">${data.type}</span>
+                                <span class="text-xs text-gray-500">${data.creator}</span>
+                            </div>
+                        </div>
+                        <div class="w-10 flex justify-center text-indigo-500">
+                            <i class="fas fa-play-circle text-2xl"></i>
+                        </div>
+                    </div>
+                `;
+                listDiv.innerHTML += itemHtml;
+            });
+        });
+
+        // 3. 모달창 제어 로직 (전역 함수)
+        window.openModal = (id) => {
+            const song = globalSongs.find(s => s.id === id);
+            if (!song) return;
+
+            // 유튜브 URL 변환 (임베드용)
+            let ytEmbed = "";
+            if (song.youtubeUrl) {
+                let videoId = song.youtubeUrl.split('v=')[1]?.split('&')[0] || song.youtubeUrl.split('youtu.be/')[1]?.split('?')[0];
+                if (videoId) ytEmbed = `<iframe class="w-full aspect-video rounded-lg mb-4" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
+            }
+
+            // MP3 플레이어
+            let audioPlayer = song.mp3Url ? `<audio controls class="w-full mt-2 mb-4"><source src="${song.mp3Url}" type="audio/mp3"></audio>` : '';
+
+            const contentHtml = `
+                <div>
+                    <img src="${song.imageUrl}" class="w-full aspect-square object-cover" alt="cover">
+                </div>
+                <div class="p-6">
+                    <h2 class="text-2xl font-bold text-gray-800">${song.title}</h2>
+                    <p class="text-sm text-gray-500 mt-1 mb-4">작사/작곡: ${song.creator} | ${song.type}</p>
+                    
+                    ${audioPlayer}
+                    ${ytEmbed}
+
+                    <div class="space-y-4 mt-6">
+                        ${song.desc ? `<div><h4 class="text-xs font-bold text-indigo-600 mb-1">📖 곡 설명 / 말씀</h4><p class="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">${song.desc.replace(/\\n/g, '<br>')}</p></div>` : ''}
+                        
+                        ${song.lyrics ? `<div><h4 class="text-xs font-bold text-indigo-600 mb-1">🎤 가사</h4><p class="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg whitespace-pre-line">${song.lyrics}</p></div>` : ''}
+                        
+                        ${song.prompt ? `<div><h4 class="text-xs font-bold text-indigo-600 mb-1">🛠️ 제작 정보 (Suno 프롬프트 등)</h4><p class="text-xs text-gray-600 bg-gray-100 p-3 rounded-lg whitespace-pre-line">${song.prompt}</p></div>` : ''}
+                    </div>
+                    
+                    <div class="mt-8 text-right">
+                        <button onclick="deleteSong('${id}')" class="text-xs text-red-400 hover:text-red-600 underline">이 곡 삭제하기</button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('modalContent').innerHTML = contentHtml;
+            document.getElementById('detailModal').classList.remove('hidden');
+        };
+
+        window.closeModal = () => {
+            document.getElementById('detailModal').classList.add('hidden');
+            // 모달 닫을 때 오디오/비디오 정지
+            document.getElementById('modalContent').innerHTML = '';
+        };
+
+        window.deleteSong = async (id) => {
+            if (confirm("정말 이 곡의 기록을 삭제하시겠습니까? (이미지와 MP3 파일은 저장소에 유지됩니다)")) {
+                await deleteDoc(doc(db, collectionName, id));
+                closeModal();
+            }
+        };
+    </script>
+</body>
+
+</html>
