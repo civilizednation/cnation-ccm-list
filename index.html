@@ -7,12 +7,6 @@
     <title>나의 CCM 아카이브 🎵</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <style>
-        .modal-content {
-            max-height: 85vh;
-            overflow-y: auto;
-        }
-    </style>
 </head>
 
 <body class="bg-gray-100 min-h-screen font-sans text-gray-800 pb-20">
@@ -98,13 +92,15 @@
         </div>
     </div>
 
-    <div id="detailModal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl w-full max-w-lg modal-content shadow-2xl overflow-hidden relative">
+    <div id="detailModal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl relative flex flex-col" style="max-height: 85vh;">
             <button onclick="closeModal()"
-                class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 bg-white rounded-full p-1 shadow z-10">
-                <i class="fas fa-times text-xl px-2"></i>
+                class="absolute top-3 right-3 text-gray-500 hover:text-gray-900 bg-white/90 backdrop-blur rounded-full w-8 h-8 flex items-center justify-center shadow-lg z-20 transition-all">
+                <i class="fas fa-times text-lg"></i>
             </button>
-            <div id="modalContent"></div>
+
+            <div id="modalContent" class="overflow-y-auto w-full rounded-2xl pb-6">
+            </div>
         </div>
     </div>
 
@@ -129,9 +125,8 @@
         const collectionName = "cnation-ccm-list";
 
         let globalSongs = [];
-        let unsubscribe = null; // 실시간 업데이트 연결을 제어하기 위한 변수
+        let unsubscribe = null;
 
-        // 페이지 로딩 시 달력 기본값을 오늘 날짜로 세팅
         document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
 
         // 1. 등록 로직
@@ -181,7 +176,6 @@
                 document.getElementById('addBtn').classList.remove('hidden');
                 document.getElementById('uploadStatus').classList.add('hidden');
 
-                // 폼 초기화
                 document.getElementById('titleInput').value = '';
                 document.getElementById('youtubeInput').value = '';
                 document.getElementById('descInput').value = '';
@@ -200,10 +194,7 @@
 
         // 2. 실시간 불러오기 및 정렬 로직
         function loadSongs(sortField, sortDirection) {
-            // 이전에 연결된 데이터 스트림이 있다면 끊어줍니다. (중복 방지)
-            if (unsubscribe) {
-                unsubscribe();
-            }
+            if (unsubscribe) unsubscribe();
 
             const q = query(collection(db, collectionName), orderBy(sortField, sortDirection));
 
@@ -223,7 +214,6 @@
                     globalSongs.push({ id, ...data });
 
                     const tagColor = data.type === '창작곡' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
-
                     const dateStr = data.creationDate ? data.creationDate.split('-').join('. ') + '.' : '';
 
                     const itemHtml = `
@@ -249,17 +239,15 @@
             });
         }
 
-        // 초기 로딩 시 '제작일 최신순'으로 세팅
         loadSongs('creationDate', 'desc');
 
-        // 정렬 옵션이 바뀔 때마다 새로운 기준으로 데이터 불러오기
         document.getElementById('sortSelect').addEventListener('change', (e) => {
             const selectedValue = e.target.value;
-            const [field, direction] = selectedValue.split('_'); // 'creationDate_desc' -> ['creationDate', 'desc'] 로 분리
+            const [field, direction] = selectedValue.split('_');
             loadSongs(field, direction);
         });
 
-        // 3. 모달 제어 (기존과 동일)
+        // 3. 모달 제어
         window.openModal = (id) => {
             const song = globalSongs.find(s => s.id === id);
             if (!song) return;
@@ -267,10 +255,10 @@
             let ytEmbed = "";
             if (song.youtubeUrl) {
                 let videoId = song.youtubeUrl.split('v=')[1]?.split('&')[0] || song.youtubeUrl.split('youtu.be/')[1]?.split('?')[0];
-                if (videoId) ytEmbed = `<iframe class="w-full aspect-video rounded-lg mb-4" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
+                if (videoId) ytEmbed = `<iframe class="w-full aspect-video mb-4" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
             }
 
-            let audioPlayer = song.mp3Url ? `<audio controls class="w-full mt-2 mb-4"><source src="${song.mp3Url}" type="audio/mp3"></audio>` : '';
+            let audioPlayer = song.mp3Url ? `<audio controls class="w-full mt-2 mb-4 px-4"><source src="${song.mp3Url}" type="audio/mp3"></audio>` : '';
             const dateStr = song.creationDate ? song.creationDate.split('-').join('. ') + '.' : '';
 
             const contentHtml = `
@@ -286,9 +274,9 @@
                     ${ytEmbed}
 
                     <div class="space-y-4 mt-6">
-                        ${song.desc ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">📖 곡 설명 / 말씀</h4><p class="text-sm text-gray-700 bg-gray-50 p-3 rounded-xl leading-relaxed">${song.desc.replace(/\n/g, '<br>')}</p></div>` : ''}
-                        ${song.lyrics ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">🎤 가사</h4><p class="text-sm text-gray-700 bg-gray-50 p-3 rounded-xl whitespace-pre-line leading-relaxed">${song.lyrics}</p></div>` : ''}
-                        ${song.prompt ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">🛠️ 제작 정보</h4><p class="text-[11px] text-gray-500 bg-gray-100 p-3 rounded-xl whitespace-pre-line">${song.prompt}</p></div>` : ''}
+                        ${song.desc ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">📖 곡 설명 / 말씀</h4><p class="text-sm text-gray-700 bg-gray-50 p-4 rounded-xl leading-relaxed">${song.desc.replace(/\n/g, '<br>')}</p></div>` : ''}
+                        ${song.lyrics ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">🎤 가사</h4><p class="text-sm text-gray-700 bg-gray-50 p-4 rounded-xl whitespace-pre-line leading-relaxed">${song.lyrics}</p></div>` : ''}
+                        ${song.prompt ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">🛠️ 제작 정보</h4><p class="text-[11px] text-gray-500 bg-gray-100 p-4 rounded-xl whitespace-pre-line">${song.prompt}</p></div>` : ''}
                     </div>
                     
                     <div class="mt-10 pt-4 border-t border-gray-100 text-right">
