@@ -98,7 +98,6 @@
                 class="absolute top-3 right-3 text-gray-500 hover:text-gray-900 bg-white/90 backdrop-blur rounded-full w-8 h-8 flex items-center justify-center shadow-lg z-20 transition-all">
                 <i class="fas fa-times text-lg"></i>
             </button>
-
             <div id="modalContent" class="overflow-y-auto w-full rounded-2xl pb-6">
             </div>
         </div>
@@ -106,7 +105,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        // updateDoc 추가!
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
         const firebaseConfig = {
@@ -126,6 +126,7 @@
 
         let globalSongs = [];
         let unsubscribe = null;
+        const ADMIN_PASSWORD = "1257"; // 팀장님 전용 비밀번호
 
         document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
 
@@ -192,7 +193,7 @@
             }
         });
 
-        // 2. 실시간 불러오기 및 정렬 로직
+        // 2. 리스트 불러오기
         function loadSongs(sortField, sortDirection) {
             if (unsubscribe) unsubscribe();
 
@@ -247,7 +248,7 @@
             loadSongs(field, direction);
         });
 
-        // 3. 모달 제어
+        // 3. 모달 제어 및 상세화면
         window.openModal = (id) => {
             const song = globalSongs.find(s => s.id === id);
             if (!song) return;
@@ -255,10 +256,10 @@
             let ytEmbed = "";
             if (song.youtubeUrl) {
                 let videoId = song.youtubeUrl.split('v=')[1]?.split('&')[0] || song.youtubeUrl.split('youtu.be/')[1]?.split('?')[0];
-                if (videoId) ytEmbed = `<iframe class="w-full aspect-video mb-4" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
+                if (videoId) ytEmbed = `<iframe class="w-full aspect-video mb-4 rounded-lg" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
             }
 
-            let audioPlayer = song.mp3Url ? `<audio controls class="w-full mt-2 mb-4 px-4"><source src="${song.mp3Url}" type="audio/mp3"></audio>` : '';
+            let audioPlayer = song.mp3Url ? `<audio controls class="w-full mt-2 mb-4"><source src="${song.mp3Url}" type="audio/mp3"></audio>` : '';
             const dateStr = song.creationDate ? song.creationDate.split('-').join('. ') + '.' : '';
 
             const contentHtml = `
@@ -279,8 +280,9 @@
                         ${song.prompt ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">🛠️ 제작 정보</h4><p class="text-[11px] text-gray-500 bg-gray-100 p-4 rounded-xl whitespace-pre-line">${song.prompt}</p></div>` : ''}
                     </div>
                     
-                    <div class="mt-10 pt-4 border-t border-gray-100 text-right">
-                        <button onclick="deleteSong('${id}')" class="text-xs text-red-300 hover:text-red-500 transition underline">기록 삭제하기</button>
+                    <div class="mt-8 pt-4 border-t border-gray-100 flex justify-end gap-3">
+                        <button onclick="editSong('${id}')" class="text-xs text-indigo-500 hover:text-indigo-700 font-bold bg-indigo-50 px-3 py-1.5 rounded-lg transition">수정하기</button>
+                        <button onclick="deleteSong('${id}')" class="text-xs text-red-500 hover:text-red-700 font-bold bg-red-50 px-3 py-1.5 rounded-lg transition">삭제하기</button>
                     </div>
                 </div>
             `;
@@ -294,10 +296,135 @@
             document.getElementById('modalContent').innerHTML = '';
         };
 
+        // 4. 삭제 기능 (비밀번호 확인)
         window.deleteSong = async (id) => {
-            if (confirm("이 곡의 기록을 삭제하시겠습니까? (저장소의 파일도 함께 삭제하는 기능은 추후 업데이트 됩니다)")) {
+            const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
+            if (pwd !== ADMIN_PASSWORD) {
+                alert("비밀번호가 일치하지 않습니다.");
+                return;
+            }
+
+            if (confirm("정말 이 곡의 기록을 삭제하시겠습니까? (삭제 후 복구 불가)")) {
                 await deleteDoc(doc(db, collectionName, id));
                 closeModal();
+            }
+        };
+
+        // 5. 수정 모드 진입 (비밀번호 확인)
+        window.editSong = (id) => {
+            const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
+            if (pwd !== ADMIN_PASSWORD) {
+                alert("비밀번호가 일치하지 않습니다.");
+                return;
+            }
+
+            const song = globalSongs.find(s => s.id === id);
+            if (!song) return;
+
+            const editHtml = `
+                <div class="p-6 bg-gray-50 rounded-2xl">
+                    <h2 class="text-xl font-bold text-indigo-700 mb-4 border-b pb-2">✏️ 곡 정보 수정하기</h2>
+                    <div class="space-y-4">
+                        <div class="flex gap-2">
+                            <select id="editType" class="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 bg-white text-sm outline-none">
+                                <option value="창작곡" ${song.type === '창작곡' ? 'selected' : ''}>창작곡</option>
+                                <option value="커버송" ${song.type === '커버송' ? 'selected' : ''}>커버송</option>
+                            </select>
+                            <input type="text" id="editTitle" value="${song.title}" class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="곡 제목">
+                        </div>
+                        <div class="flex gap-2">
+                            <input type="text" id="editCreator" value="${song.creator}" class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="작사/작곡">
+                            <input type="date" id="editDate" value="${song.creationDate}" class="w-36 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm text-gray-600 bg-white outline-none">
+                        </div>
+                        <input type="text" id="editYoutube" value="${song.youtubeUrl || ''}" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="유튜브 주소 링크">
+                        
+                        <div class="p-3 bg-white border border-dashed border-gray-300 rounded-lg space-y-3">
+                            <div>
+                                <label class="block text-[11px] font-bold text-gray-500 mb-1">🖼️ 새 타이틀 이미지 (변경할 경우만 선택)</label>
+                                <input type="file" id="editImage" accept="image/*" class="w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:bg-indigo-50 file:text-indigo-700">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-gray-500 mb-1">🎵 새 MP3 음원 (변경할 경우만 선택)</label>
+                                <input type="file" id="editMp3" accept="audio/mp3" class="w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:bg-indigo-50 file:text-indigo-700">
+                            </div>
+                        </div>
+
+                        <textarea id="editDesc" rows="2" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="곡 설명">${song.desc || ''}</textarea>
+                        <textarea id="editLyrics" rows="5" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="가사">${song.lyrics || ''}</textarea>
+                        <textarea id="editPrompt" rows="2" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="제작 정보">${song.prompt || ''}</textarea>
+                        
+                        <div class="flex gap-2 mt-4 pt-2 border-t border-gray-200">
+                            <button onclick="saveEdit('${id}')" id="saveEditBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition">저장 완료</button>
+                            <button onclick="openModal('${id}')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 font-bold py-2.5 rounded-lg transition">취소</button>
+                        </div>
+                        <p id="editStatus" class="text-sm text-center text-indigo-600 font-bold hidden mt-2">수정 중입니다... ⏳</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modalContent').innerHTML = editHtml;
+        };
+
+        // 6. 수정 사항 저장 로직
+        window.saveEdit = async (id) => {
+            const song = globalSongs.find(s => s.id === id);
+            if (!song) return;
+
+            const title = document.getElementById('editTitle').value;
+            const type = document.getElementById('editType').value;
+            const creator = document.getElementById('editCreator').value;
+            const creationDate = document.getElementById('editDate').value;
+            const youtubeUrl = document.getElementById('editYoutube').value;
+            const desc = document.getElementById('editDesc').value;
+            const lyrics = document.getElementById('editLyrics').value;
+            const promptInfo = document.getElementById('editPrompt').value;
+
+            const imageFile = document.getElementById('editImage').files[0];
+            const mp3File = document.getElementById('editMp3').files[0];
+
+            if (!title || !creationDate) {
+                alert("제목과 제작일은 지울 수 없습니다!");
+                return;
+            }
+
+            document.getElementById('saveEditBtn').classList.add('hidden');
+            document.getElementById('editStatus').classList.remove('hidden');
+
+            try {
+                // 새 파일이 선택되었으면 업로드 후 URL 변경, 아니면 기존 URL 유지
+                let imageUrl = song.imageUrl;
+                if (imageFile) {
+                    const imageRef = ref(storage, `${collectionName}/images/${Date.now()}_${imageFile.name}`);
+                    await uploadBytes(imageRef, imageFile);
+                    imageUrl = await getDownloadURL(imageRef);
+                }
+
+                let mp3Url = song.mp3Url;
+                if (mp3File) {
+                    const mp3Ref = ref(storage, `${collectionName}/audio/${Date.now()}_${mp3File.name}`);
+                    await uploadBytes(mp3Ref, mp3File);
+                    mp3Url = await getDownloadURL(mp3Ref);
+                }
+
+                await updateDoc(doc(db, collectionName, id), {
+                    title: title,
+                    type: type,
+                    creator: creator,
+                    creationDate: creationDate,
+                    youtubeUrl: youtubeUrl,
+                    desc: desc,
+                    lyrics: lyrics,
+                    prompt: promptInfo,
+                    imageUrl: imageUrl,
+                    mp3Url: mp3Url
+                });
+
+                alert("성공적으로 수정되었습니다! ✨");
+                closeModal(); // 저장 완료 후 모달창 닫기 (메인 리스트는 자동 새로고침 됨)
+            } catch (error) {
+                console.error("수정 에러:", error);
+                alert("수정 중 오류가 발생했습니다.");
+                document.getElementById('saveEditBtn').classList.remove('hidden');
+                document.getElementById('editStatus').classList.add('hidden');
             }
         };
     </script>
