@@ -3,10 +3,24 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>cnation CCM 아카이브 🎵</title>
+
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#4f46e5">
+
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="cnation CCM">
+    <link rel="apple-touch-icon" href="./icon.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .modal-content {
+            max-height: 85vh;
+            overflow-y: auto;
+        }
+    </style>
 </head>
 
 <body class="bg-gray-100 min-h-screen font-sans text-gray-800 pb-20">
@@ -29,7 +43,7 @@
             </div>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-sm p-4 mb-6">
+        <div class="bg-white rounded-2xl shadow-sm p-4 mb-6 relative">
             <div class="flex justify-between items-center mb-4 px-2">
                 <h2 class="text-lg font-bold text-gray-700">전체 곡 목록</h2>
                 <select id="sortSelect"
@@ -112,7 +126,8 @@
     </div>
 
     <div id="detailModal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl relative flex flex-col" style="max-height: 85vh;">
+        <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl relative flex flex-col modal-content"
+            style="max-height: 85vh;">
             <button onclick="closeModal()"
                 class="absolute top-3 right-3 text-gray-500 hover:text-gray-900 bg-white/90 backdrop-blur rounded-full w-8 h-8 flex items-center justify-center shadow-lg z-20 transition-all">
                 <i class="fas fa-times text-lg"></i>
@@ -127,6 +142,7 @@
         import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
+        // ★ 팀장님의 파이어베이스 설정값입니다 ★
         const firebaseConfig = {
             apiKey: "AIzaSyCTwOAC_LrrKH8CKepUOTf0pyd9qRv4y_8",
             authDomain: "cnation-project.firebaseapp.com",
@@ -144,23 +160,59 @@
 
         let globalSongs = [];
         let unsubscribe = null;
-        const ADMIN_PASSWORD = "1257";
+        const ADMIN_PASSWORD = "1257"; // 팀장님 전용 비밀번호
 
         document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
 
-        // 🟢 아코디언 (접기/펴기) 제어 로직
+        // 🟠 아코디언 (접기/펴기) 제어
         document.getElementById('toggleFormBtn').addEventListener('click', () => {
             const formContent = document.getElementById('formContent');
             const toggleIcon = document.getElementById('toggleIcon');
 
             if (formContent.classList.contains('hidden')) {
                 formContent.classList.remove('hidden');
-                toggleIcon.textContent = '➖'; // 열렸을 때 아이콘 변경
+                toggleIcon.textContent = '➖';
             } else {
                 formContent.classList.add('hidden');
-                toggleIcon.textContent = '➕'; // 닫혔을 때 아이콘 변경
+                toggleIcon.textContent = '➕';
             }
         });
+
+        // 🖼️ 브라우저단 썸네일 생성 함수
+        function generateThumbnail(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        const max_size = 300; // 썸네일 최대 너비/높이
+
+                        if (width > height) {
+                            if (width > max_size) {
+                                height *= max_size / width;
+                                width = max_size;
+                            }
+                        } else {
+                            if (height > max_size) {
+                                width *= max_size / height;
+                                height = max_size;
+                            }
+                        }
+                        canvas.width = width;
+                        canvas.height = height;
+                        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+
+                        // 저화질 JPEG로 변환 (0.6 수율)
+                        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.6);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
 
         // 1. 등록 로직
         document.getElementById('addBtn').addEventListener('click', async () => {
@@ -180,13 +232,21 @@
             document.getElementById('uploadStatus').classList.remove('hidden');
 
             try {
-                const imageRef = ref(storage, `${collectionName}/images/${Date.now()}_${imageFile.name}`);
-                await uploadBytes(imageRef, imageFile);
-                const imageUrl = await getDownloadURL(imageRef);
+                // 원본 이미지 업로드
+                const timeStr = Date.now();
+                const originalImageRef = ref(storage, `${collectionName}/images/${timeStr}_${imageFile.name}`);
+                await uploadBytes(originalImageRef, imageFile);
+                const imageUrl = await getDownloadURL(originalImageRef);
+
+                // 썸네일 이미지 생성 및 업로드
+                const thumbnailBlob = await generateThumbnail(imageFile);
+                const thumbnailRef = ref(storage, `${collectionName}/thumbnails/${timeStr}_${imageFile.name}.jpg`);
+                await uploadBytes(thumbnailRef, thumbnailBlob);
+                const thumbnailUrl = await getDownloadURL(thumbnailRef);
 
                 let mp3Url = "";
                 if (mp3File) {
-                    const mp3Ref = ref(storage, `${collectionName}/audio/${Date.now()}_${mp3File.name}`);
+                    const mp3Ref = ref(storage, `${collectionName}/audio/${timeStr}_${mp3File.name}`);
                     await uploadBytes(mp3Ref, mp3File);
                     mp3Url = await getDownloadURL(mp3Ref);
                 }
@@ -200,29 +260,14 @@
                     desc: document.getElementById('descInput').value,
                     lyrics: document.getElementById('lyricsInput').value,
                     prompt: document.getElementById('promptInput').value,
-                    imageUrl: imageUrl,
+                    imageUrl: imageUrl,       // 원본은 여기에
+                    thumbnailUrl: thumbnailUrl, // 썸네일은 여기에
                     mp3Url: mp3Url,
                     createdAt: serverTimestamp()
                 });
 
                 alert("성공적으로 곡이 등록되었습니다! 🎉");
-
-                // 등록 성공 시 폼 초기화 및 접기
-                document.getElementById('addBtn').classList.remove('hidden');
-                document.getElementById('uploadStatus').classList.add('hidden');
-
-                document.getElementById('titleInput').value = '';
-                document.getElementById('youtubeInput').value = '';
-                document.getElementById('descInput').value = '';
-                document.getElementById('lyricsInput').value = '';
-                document.getElementById('promptInput').value = '';
-                document.getElementById('imageInput').value = '';
-                document.getElementById('mp3Input').value = '';
-
-                // 성공하면 자동으로 폼 닫아주기
-                document.getElementById('formContent').classList.add('hidden');
-                document.getElementById('toggleIcon').textContent = '➕';
-
+                location.reload();
             } catch (error) {
                 console.error("업로드 에러:", error);
                 alert("업로드 중 에러가 발생했습니다.");
@@ -231,7 +276,7 @@
             }
         });
 
-        // 2. 리스트 불러오기 (곡 목록을 위로 올림)
+        // 2. 리스트 불러오기 (썸네일 적용)
         function loadSongs(sortField, sortDirection) {
             if (unsubscribe) unsubscribe();
 
@@ -242,11 +287,6 @@
                 listDiv.innerHTML = '';
                 globalSongs = [];
 
-                if (snapshot.empty) {
-                    listDiv.innerHTML = '<p class="text-center text-gray-400 py-4">등록된 곡이 없습니다. 새 곡을 등록해주세요!</p>';
-                    return;
-                }
-
                 snapshot.forEach((docSnap) => {
                     const data = docSnap.data();
                     const id = docSnap.id;
@@ -255,9 +295,12 @@
                     const tagColor = data.type === '창작곡' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
                     const dateStr = data.creationDate ? data.creationDate.split('-').join('. ') + '.' : '';
 
+                    // 썸네일 URL이 있으면 썸네일을, 없으면 원본 이미지를 불러옵니다.
+                    const displayImage = data.thumbnailUrl ? data.thumbnailUrl : data.imageUrl;
+
                     const itemHtml = `
                         <div onclick="openModal('${id}')" class="flex items-center p-3 bg-white border border-gray-100 rounded-xl hover:shadow-md cursor-pointer transition">
-                            <img src="${data.imageUrl}" class="w-16 h-16 rounded-lg object-cover shadow-sm mr-4" alt="cover">
+                            <img src="${displayImage}" class="w-16 h-16 rounded-lg object-cover shadow-sm mr-4" alt="cover">
                             <div class="flex-1">
                                 <div class="flex items-center justify-between mb-0.5">
                                     <h3 class="font-bold text-gray-800 text-base line-clamp-1">${data.title}</h3>
@@ -286,7 +329,7 @@
             loadSongs(field, direction);
         });
 
-        // 3. 모달 제어 및 상세화면
+        // 3. 모달 상세화면 (원본 이미지 사용)
         window.openModal = (id) => {
             const song = globalSongs.find(s => s.id === id);
             if (!song) return;
@@ -334,7 +377,7 @@
             document.getElementById('modalContent').innerHTML = '';
         };
 
-        // 4. 삭제 기능
+        // 4. 삭제 기능 (비밀번호 확인)
         window.deleteSong = async (id) => {
             const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
             if (pwd !== ADMIN_PASSWORD) {
@@ -348,7 +391,7 @@
             }
         };
 
-        // 5. 수정 모드 진입
+        // 5. 수정 모드 진입 (비밀번호 확인)
         window.editSong = (id) => {
             const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
             if (pwd !== ADMIN_PASSWORD) {
@@ -360,7 +403,7 @@
             if (!song) return;
 
             const editHtml = `
-                <div class="p-6 bg-gray-50 rounded-2xl">
+                <div class="p-6 bg-gray-50 rounded-2xl modal-content overflow-y-auto" style="max-height: 80vh;">
                     <h2 class="text-xl font-bold text-indigo-700 mb-4 border-b pb-2">✏️ 곡 정보 수정하기</h2>
                     <div class="space-y-4">
                         <div class="flex gap-2">
@@ -402,7 +445,7 @@
             document.getElementById('modalContent').innerHTML = editHtml;
         };
 
-        // 6. 수정 사항 저장
+        // 6. 수정 사항 저장 (썸네일 포함)
         window.saveEdit = async (id) => {
             const song = globalSongs.find(s => s.id === id);
             if (!song) return;
@@ -429,10 +472,22 @@
 
             try {
                 let imageUrl = song.imageUrl;
+                let thumbnailUrl = song.thumbnailUrl;
+
+                // 이미지가 변경된 경우에만 원본 및 썸네일 다시 업로드
                 if (imageFile) {
-                    const imageRef = ref(storage, `${collectionName}/images/${Date.now()}_${imageFile.name}`);
+                    const timeStr = Date.now();
+
+                    // 원본 업로드
+                    const imageRef = ref(storage, `${collectionName}/images/${timeStr}_${imageFile.name}`);
                     await uploadBytes(imageRef, imageFile);
                     imageUrl = await getDownloadURL(imageRef);
+
+                    // 썸네일 업로드
+                    const thumbnailBlob = await generateThumbnail(imageFile);
+                    const thumbnailRef = ref(storage, `${collectionName}/thumbnails/${timeStr}_${imageFile.name}.jpg`);
+                    await uploadBytes(thumbnailRef, thumbnailBlob);
+                    thumbnailUrl = await getDownloadURL(thumbnailRef);
                 }
 
                 let mp3Url = song.mp3Url;
@@ -451,7 +506,8 @@
                     desc: desc,
                     lyrics: lyrics,
                     prompt: promptInfo,
-                    imageUrl: imageUrl,
+                    imageUrl: imageUrl,       // 원본은 여기에
+                    thumbnailUrl: thumbnailUrl, // 썸네일은 여기에
                     mp3Url: mp3Url
                 });
 
