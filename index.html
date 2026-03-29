@@ -9,10 +9,17 @@
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#4f46e5">
 
+    <link rel="icon" type="image/x-icon" href="./favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="./android-chrome-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="./android-chrome-512x512.png">
+
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="cnation CCM">
-    <link rel="apple-touch-icon" href="./icon.png">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -55,9 +62,12 @@
                     <option value="creator_asc">작사/작곡자순 🔼</option>
                 </select>
             </div>
+
             <div id="songList" class="space-y-3">
                 <p class="text-center text-gray-400 py-4">데이터를 불러오는 중입니다...</p>
             </div>
+
+            <div id="moreBtnContainer" class="mt-4"></div>
         </div>
 
         <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
@@ -142,7 +152,6 @@
         import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
-        // ★ 팀장님의 파이어베이스 설정값입니다 ★
         const firebaseConfig = {
             apiKey: "AIzaSyCTwOAC_LrrKH8CKepUOTf0pyd9qRv4y_8",
             authDomain: "cnation-project.firebaseapp.com",
@@ -160,11 +169,14 @@
 
         let globalSongs = [];
         let unsubscribe = null;
-        const ADMIN_PASSWORD = "1257"; // 팀장님 전용 비밀번호
+        const ADMIN_PASSWORD = "1257";
+
+        // ★ 한 번에 보여줄 곡의 개수 (초기값 10개)
+        let displayLimit = 10;
 
         document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
 
-        // 🟠 아코디언 (접기/펴기) 제어
+        // 아코디언 제어
         document.getElementById('toggleFormBtn').addEventListener('click', () => {
             const formContent = document.getElementById('formContent');
             const toggleIcon = document.getElementById('toggleIcon');
@@ -178,7 +190,7 @@
             }
         });
 
-        // 🖼️ 브라우저단 썸네일 생성 함수
+        // 썸네일 생성 함수
         function generateThumbnail(file) {
             return new Promise((resolve) => {
                 const reader = new FileReader();
@@ -188,7 +200,7 @@
                         const canvas = document.createElement('canvas');
                         let width = img.width;
                         let height = img.height;
-                        const max_size = 300; // 썸네일 최대 너비/높이
+                        const max_size = 300;
 
                         if (width > height) {
                             if (width > max_size) {
@@ -204,8 +216,6 @@
                         canvas.width = width;
                         canvas.height = height;
                         canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-
-                        // 저화질 JPEG로 변환 (0.6 수율)
                         canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.6);
                     };
                     img.src = e.target.result;
@@ -232,13 +242,11 @@
             document.getElementById('uploadStatus').classList.remove('hidden');
 
             try {
-                // 원본 이미지 업로드
                 const timeStr = Date.now();
                 const originalImageRef = ref(storage, `${collectionName}/images/${timeStr}_${imageFile.name}`);
                 await uploadBytes(originalImageRef, imageFile);
                 const imageUrl = await getDownloadURL(originalImageRef);
 
-                // 썸네일 이미지 생성 및 업로드
                 const thumbnailBlob = await generateThumbnail(imageFile);
                 const thumbnailRef = ref(storage, `${collectionName}/thumbnails/${timeStr}_${imageFile.name}.jpg`);
                 await uploadBytes(thumbnailRef, thumbnailBlob);
@@ -260,8 +268,8 @@
                     desc: document.getElementById('descInput').value,
                     lyrics: document.getElementById('lyricsInput').value,
                     prompt: document.getElementById('promptInput').value,
-                    imageUrl: imageUrl,       // 원본은 여기에
-                    thumbnailUrl: thumbnailUrl, // 썸네일은 여기에
+                    imageUrl: imageUrl,
+                    thumbnailUrl: thumbnailUrl,
                     mp3Url: mp3Url,
                     createdAt: serverTimestamp()
                 });
@@ -276,48 +284,81 @@
             }
         });
 
-        // 2. 리스트 불러오기 (썸네일 적용)
+        // ★ 2. 화면에 곡을 그려주는 함수 (더 보기 로직 추가) ★
+        function renderSongs() {
+            const listDiv = document.getElementById('songList');
+            const moreBtnContainer = document.getElementById('moreBtnContainer');
+            listDiv.innerHTML = '';
+
+            if (globalSongs.length === 0) {
+                listDiv.innerHTML = '<p class="text-center text-gray-400 py-4">등록된 곡이 없습니다. 새 곡을 등록해주세요!</p>';
+                moreBtnContainer.innerHTML = '';
+                return;
+            }
+
+            // displayLimit 개수만큼만 잘라서 보여줌
+            const songsToShow = globalSongs.slice(0, displayLimit);
+
+            songsToShow.forEach((data) => {
+                const tagColor = data.type === '창작곡' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
+                const dateStr = data.creationDate ? data.creationDate.split('-').join('. ') + '.' : '';
+                const displayImage = data.thumbnailUrl ? data.thumbnailUrl : data.imageUrl;
+
+                // loading="lazy" 속성으로 화면에 보일 때만 이미지를 다운로드하도록 최적화!
+                const itemHtml = `
+                    <div onclick="openModal('${data.id}')" class="flex items-center p-3 bg-white border border-gray-100 rounded-xl hover:shadow-md cursor-pointer transition">
+                        <img src="${displayImage}" loading="lazy" class="w-16 h-16 rounded-lg object-cover shadow-sm mr-4" alt="cover">
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between mb-0.5">
+                                <h3 class="font-bold text-gray-800 text-base line-clamp-1">${data.title}</h3>
+                                <span class="text-[10px] text-gray-400 font-medium">${dateStr}</span>
+                            </div>
+                            <div class="flex items-center">
+                                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${tagColor} mr-2">${data.type}</span>
+                                <span class="text-xs text-gray-500">${data.creator}</span>
+                            </div>
+                        </div>
+                        <div class="w-8 flex justify-end text-indigo-400">
+                            <i class="fas fa-chevron-right"></i>
+                        </div>
+                    </div>
+                `;
+                listDiv.innerHTML += itemHtml;
+            });
+
+            // 아직 보여줄 곡이 더 남아있다면 '더 보기' 버튼 생성
+            if (displayLimit < globalSongs.length) {
+                moreBtnContainer.innerHTML = `
+                    <button id="loadMoreBtn" class="w-full bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 font-bold py-3 rounded-xl transition shadow-sm text-sm flex items-center justify-center gap-2">
+                        <span>더 보기 (${displayLimit} / ${globalSongs.length})</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                `;
+                document.getElementById('loadMoreBtn').addEventListener('click', () => {
+                    displayLimit += 10; // 10개 추가
+                    renderSongs(); // 다시 그리기
+                });
+            } else {
+                moreBtnContainer.innerHTML = ''; // 다 보여줬으면 버튼 숨김
+            }
+        }
+
+        // 3. 리스트 데이터 불러오기
         function loadSongs(sortField, sortDirection) {
             if (unsubscribe) unsubscribe();
 
             const q = query(collection(db, collectionName), orderBy(sortField, sortDirection));
 
             unsubscribe = onSnapshot(q, (snapshot) => {
-                const listDiv = document.getElementById('songList');
-                listDiv.innerHTML = '';
                 globalSongs = [];
-
                 snapshot.forEach((docSnap) => {
                     const data = docSnap.data();
                     const id = docSnap.id;
                     globalSongs.push({ id, ...data });
-
-                    const tagColor = data.type === '창작곡' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
-                    const dateStr = data.creationDate ? data.creationDate.split('-').join('. ') + '.' : '';
-
-                    // 썸네일 URL이 있으면 썸네일을, 없으면 원본 이미지를 불러옵니다.
-                    const displayImage = data.thumbnailUrl ? data.thumbnailUrl : data.imageUrl;
-
-                    const itemHtml = `
-                        <div onclick="openModal('${id}')" class="flex items-center p-3 bg-white border border-gray-100 rounded-xl hover:shadow-md cursor-pointer transition">
-                            <img src="${displayImage}" class="w-16 h-16 rounded-lg object-cover shadow-sm mr-4" alt="cover">
-                            <div class="flex-1">
-                                <div class="flex items-center justify-between mb-0.5">
-                                    <h3 class="font-bold text-gray-800 text-base line-clamp-1">${data.title}</h3>
-                                    <span class="text-[10px] text-gray-400 font-medium">${dateStr}</span>
-                                </div>
-                                <div class="flex items-center">
-                                    <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${tagColor} mr-2">${data.type}</span>
-                                    <span class="text-xs text-gray-500">${data.creator}</span>
-                                </div>
-                            </div>
-                            <div class="w-8 flex justify-end text-indigo-400">
-                                <i class="fas fa-chevron-right"></i>
-                            </div>
-                        </div>
-                    `;
-                    listDiv.innerHTML += itemHtml;
                 });
+
+                displayLimit = 10; // 정렬을 바꾸거나 새로고침하면 다시 10개부터 시작
+                renderSongs(); // 화면 그리기 호출
             });
         }
 
@@ -329,7 +370,7 @@
             loadSongs(field, direction);
         });
 
-        // 3. 모달 상세화면 (원본 이미지 사용)
+        // 4. 모달 상세화면
         window.openModal = (id) => {
             const song = globalSongs.find(s => s.id === id);
             if (!song) return;
@@ -377,7 +418,7 @@
             document.getElementById('modalContent').innerHTML = '';
         };
 
-        // 4. 삭제 기능 (비밀번호 확인)
+        // 5. 삭제 기능
         window.deleteSong = async (id) => {
             const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
             if (pwd !== ADMIN_PASSWORD) {
@@ -391,7 +432,7 @@
             }
         };
 
-        // 5. 수정 모드 진입 (비밀번호 확인)
+        // 6. 수정 모드 진입
         window.editSong = (id) => {
             const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
             if (pwd !== ADMIN_PASSWORD) {
@@ -445,7 +486,7 @@
             document.getElementById('modalContent').innerHTML = editHtml;
         };
 
-        // 6. 수정 사항 저장 (썸네일 포함)
+        // 7. 수정 사항 저장
         window.saveEdit = async (id) => {
             const song = globalSongs.find(s => s.id === id);
             if (!song) return;
@@ -474,16 +515,13 @@
                 let imageUrl = song.imageUrl;
                 let thumbnailUrl = song.thumbnailUrl;
 
-                // 이미지가 변경된 경우에만 원본 및 썸네일 다시 업로드
                 if (imageFile) {
                     const timeStr = Date.now();
 
-                    // 원본 업로드
                     const imageRef = ref(storage, `${collectionName}/images/${timeStr}_${imageFile.name}`);
                     await uploadBytes(imageRef, imageFile);
                     imageUrl = await getDownloadURL(imageRef);
 
-                    // 썸네일 업로드
                     const thumbnailBlob = await generateThumbnail(imageFile);
                     const thumbnailRef = ref(storage, `${collectionName}/thumbnails/${timeStr}_${imageFile.name}.jpg`);
                     await uploadBytes(thumbnailRef, thumbnailBlob);
@@ -506,8 +544,8 @@
                     desc: desc,
                     lyrics: lyrics,
                     prompt: promptInfo,
-                    imageUrl: imageUrl,       // 원본은 여기에
-                    thumbnailUrl: thumbnailUrl, // 썸네일은 여기에
+                    imageUrl: imageUrl,
+                    thumbnailUrl: thumbnailUrl,
                     mp3Url: mp3Url
                 });
 
