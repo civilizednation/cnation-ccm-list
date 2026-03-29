@@ -63,10 +63,7 @@
                 </select>
             </div>
 
-            <div id="songList" class="space-y-3">
-                <p class="text-center text-gray-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i>데이터를 불러오는 중입니다...
-                </p>
-            </div>
+            <div id="songList"></div>
 
             <div id="moreBtnContainer" class="mt-4"></div>
         </div>
@@ -150,7 +147,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        // ★ 핵심: onSnapshot(실시간) 버리고 getDocs(단발성), startAfter(진짜 커서) 도입 ★
+        import { getFirestore, collection, addDoc, query, orderBy, limit, startAfter, getDocs, deleteDoc, doc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
         const firebaseConfig = {
@@ -169,27 +167,146 @@
         const collectionName = "cnation-ccm-list";
 
         let globalSongs = [];
-        let unsubscribe = null;
+        let lastVisibleDoc = null; // 서버에서 다음 5개를 가져오기 위한 '책갈피' 역할
+        let isFetching = false;
+        const FETCH_LIMIT = 5; // 무조건 서버에서 5개만 가져옴
         const ADMIN_PASSWORD = "1257";
-
-        // ★ 한 번에 보여줄 곡의 개수를 5개로 초경량화! ★
-        let displayLimit = 5;
 
         document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
 
-        // 아코디언 제어
+        // 아코디언
         document.getElementById('toggleFormBtn').addEventListener('click', () => {
             const formContent = document.getElementById('formContent');
             const toggleIcon = document.getElementById('toggleIcon');
-
-            if (formContent.classList.contains('hidden')) {
-                formContent.classList.remove('hidden');
-                toggleIcon.textContent = '➖';
-            } else {
-                formContent.classList.add('hidden');
-                toggleIcon.textContent = '➕';
-            }
+            formContent.classList.toggle('hidden');
+            toggleIcon.textContent = formContent.classList.contains('hidden') ? '➕' : '➖';
         });
+
+        // HTML 그리기 전용 함수
+        function appendSongToDOM(id, data) {
+            const listDiv = document.getElementById('songList');
+            const tagColor = data.type === '창작곡' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
+            const dateStr = data.creationDate ? data.creationDate.split('-').join('. ') + '.' : '';
+            const displayImage = data.thumbnailUrl ? data.thumbnailUrl : data.imageUrl;
+
+            const itemHtml = `
+                <div onclick="openModal('${id}')" class="flex items-center p-3 bg-white border border-gray-100 rounded-xl hover:shadow-md cursor-pointer transition mt-3">
+                    <img src="${displayImage}" loading="lazy" class="w-16 h-16 rounded-lg object-cover shadow-sm mr-4 shrink-0" alt="cover">
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-0.5">
+                            <h3 class="font-bold text-gray-800 text-base line-clamp-1">${data.title}</h3>
+                            <span class="text-[10px] text-gray-400 font-medium">${dateStr}</span>
+                        </div>
+                        <div class="flex items-center">
+                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${tagColor} mr-2">${data.type}</span>
+                            <span class="text-xs text-gray-500">${data.creator}</span>
+                        </div>
+                    </div>
+                    <div class="w-8 flex justify-end text-indigo-400">
+                        <i class="fas fa-chevron-right"></i>
+                    </div>
+                </div>
+            `;
+            listDiv.insertAdjacentHTML('beforeend', itemHtml);
+        }
+
+        // ★ 첫 화면 5개 가져오기 (단발성 요청) ★
+        async function loadSongsInitial(sortField, sortDirection) {
+            const listDiv = document.getElementById('songList');
+            const moreBtnContainer = document.getElementById('moreBtnContainer');
+
+            listDiv.innerHTML = '<p class="text-center text-gray-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i>서버에서 데이터를 부르는 중...</p>';
+            moreBtnContainer.innerHTML = '';
+            globalSongs = [];
+            lastVisibleDoc = null;
+
+            try {
+                // DB 전체가 아니라, 정렬 기준에 맞춰서 딱 5개만 달라고 서버에 요청!
+                const q = query(collection(db, collectionName), orderBy(sortField, sortDirection), limit(FETCH_LIMIT));
+                const snapshot = await getDocs(q);
+
+                listDiv.innerHTML = ''; // 로딩 문구 삭제
+
+                if (snapshot.empty) {
+                    listDiv.innerHTML = '<p class="text-center text-gray-400 py-4">등록된 곡이 없습니다.</p>';
+                    return;
+                }
+
+                lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1]; // 5번째 문서에 책갈피 꽂기
+
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    globalSongs.push({ id: docSnap.id, ...data });
+                    appendSongToDOM(docSnap.id, data);
+                });
+
+                // 5개를 꽉 채워서 가져왔다면, 다음 곡이 더 있을 확률이 높으므로 버튼 생성
+                if (snapshot.docs.length === FETCH_LIMIT) {
+                    renderMoreButton(sortField, sortDirection);
+                }
+            } catch (error) {
+                console.error("불러오기 에러:", error);
+                listDiv.innerHTML = '<p class="text-center text-red-400 py-4">네트워크 지연 발생. 새로고침 해주세요.</p>';
+            }
+        }
+
+        function renderMoreButton(sortField, sortDirection) {
+            const moreBtnContainer = document.getElementById('moreBtnContainer');
+            moreBtnContainer.innerHTML = `
+                <button id="loadMoreBtn" class="w-full bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 font-bold py-3 rounded-xl transition shadow-sm text-sm flex items-center justify-center gap-2">
+                    <span>다음 5곡 더 보기 🔽</span>
+                </button>
+            `;
+            document.getElementById('loadMoreBtn').addEventListener('click', () => {
+                loadMoreSongs(sortField, sortDirection);
+            });
+        }
+
+        // ★ 책갈피 이후부터 5개 가져오기 ★
+        async function loadMoreSongs(sortField, sortDirection) {
+            if (isFetching || !lastVisibleDoc) return;
+            isFetching = true;
+
+            const loadMoreBtn = document.getElementById('loadMoreBtn');
+            loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 불러오는 중...';
+
+            try {
+                // 아까 꽂아둔 책갈피(startAfter) 다음부터 5개만 가져오기
+                const q = query(collection(db, collectionName), orderBy(sortField, sortDirection), startAfter(lastVisibleDoc), limit(FETCH_LIMIT));
+                const snapshot = await getDocs(q);
+
+                if (!snapshot.empty) {
+                    lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1]; // 책갈피 업데이트
+                    snapshot.forEach((docSnap) => {
+                        const data = docSnap.data();
+                        globalSongs.push({ id: docSnap.id, ...data });
+                        appendSongToDOM(docSnap.id, data);
+                    });
+                }
+
+                if (snapshot.docs.length === FETCH_LIMIT) {
+                    renderMoreButton(sortField, sortDirection);
+                } else {
+                    document.getElementById('moreBtnContainer').innerHTML = '<p class="text-center text-xs text-gray-400 mt-4">모든 곡을 불러왔습니다. 🎉</p>';
+                }
+            } catch (error) {
+                console.error("추가 로딩 에러:", error);
+                renderMoreButton(sortField, sortDirection);
+            }
+            isFetching = false;
+        }
+
+        // 정렬 변경 시 리스트 다시 불러오기
+        document.getElementById('sortSelect').addEventListener('change', (e) => {
+            const selectedValue = e.target.value;
+            const [field, direction] = selectedValue.split('_');
+            loadSongsInitial(field, direction);
+        });
+
+        // 앱 켤 때 최초 로딩 실행
+        loadSongsInitial('creationDate', 'desc');
+
+        /* --- 아래는 기존 이미지 썸네일 생성 및 업로드, 수정, 삭제 로직 (동일) --- */
 
         function generateThumbnail(file) {
             return new Promise((resolve) => {
@@ -201,17 +318,10 @@
                         let width = img.width;
                         let height = img.height;
                         const max_size = 300;
-
                         if (width > height) {
-                            if (width > max_size) {
-                                height *= max_size / width;
-                                width = max_size;
-                            }
+                            if (width > max_size) { height *= max_size / width; width = max_size; }
                         } else {
-                            if (height > max_size) {
-                                width *= max_size / height;
-                                height = max_size;
-                            }
+                            if (height > max_size) { width *= max_size / height; height = max_size; }
                         }
                         canvas.width = width;
                         canvas.height = height;
@@ -259,114 +369,22 @@
                 }
 
                 await addDoc(collection(db, collectionName), {
-                    title: title,
-                    type: type,
-                    creator: creator,
-                    creationDate: creationDate,
+                    title: title, type: type, creator: creator, creationDate: creationDate,
                     youtubeUrl: document.getElementById('youtubeInput').value,
                     desc: document.getElementById('descInput').value,
                     lyrics: document.getElementById('lyricsInput').value,
                     prompt: document.getElementById('promptInput').value,
-                    imageUrl: imageUrl,
-                    thumbnailUrl: thumbnailUrl,
-                    mp3Url: mp3Url,
+                    imageUrl: imageUrl, thumbnailUrl: thumbnailUrl, mp3Url: mp3Url,
                     createdAt: serverTimestamp()
                 });
 
                 alert("성공적으로 곡이 등록되었습니다! 🎉");
                 location.reload();
             } catch (error) {
-                console.error("업로드 에러:", error);
                 alert("업로드 중 에러가 발생했습니다.");
                 document.getElementById('addBtn').classList.remove('hidden');
                 document.getElementById('uploadStatus').classList.add('hidden');
             }
-        });
-
-        // ★ 화면에 곡을 그려주는 함수 (썸네일 이미지 복구 & 5개씩 렌더링) ★
-        function renderSongs() {
-            const listDiv = document.getElementById('songList');
-            const moreBtnContainer = document.getElementById('moreBtnContainer');
-            listDiv.innerHTML = '';
-
-            if (globalSongs.length === 0) {
-                listDiv.innerHTML = '<p class="text-center text-gray-400 py-4">등록된 곡이 없거나 데이터를 불러오는 중입니다...</p>';
-                moreBtnContainer.innerHTML = '';
-                return;
-            }
-
-            const songsToShow = globalSongs.slice(0, displayLimit);
-
-            songsToShow.forEach((data) => {
-                const tagColor = data.type === '창작곡' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
-                const dateStr = data.creationDate ? data.creationDate.split('-').join('. ') + '.' : '';
-
-                // 썸네일 이미지를 다시 불러오도록 원복!
-                const displayImage = data.thumbnailUrl ? data.thumbnailUrl : data.imageUrl;
-
-                const itemHtml = `
-                    <div onclick="openModal('${data.id}')" class="flex items-center p-3 bg-white border border-gray-100 rounded-xl hover:shadow-md cursor-pointer transition">
-                        <img src="${displayImage}" loading="lazy" class="w-16 h-16 rounded-lg object-cover shadow-sm mr-4 shrink-0" alt="cover">
-                        
-                        <div class="flex-1">
-                            <div class="flex items-center justify-between mb-0.5">
-                                <h3 class="font-bold text-gray-800 text-base line-clamp-1">${data.title}</h3>
-                                <span class="text-[10px] text-gray-400 font-medium">${dateStr}</span>
-                            </div>
-                            <div class="flex items-center">
-                                <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${tagColor} mr-2">${data.type}</span>
-                                <span class="text-xs text-gray-500">${data.creator}</span>
-                            </div>
-                        </div>
-                        <div class="w-8 flex justify-end text-indigo-400">
-                            <i class="fas fa-chevron-right"></i>
-                        </div>
-                    </div>
-                `;
-                listDiv.innerHTML += itemHtml;
-            });
-
-            if (displayLimit < globalSongs.length) {
-                moreBtnContainer.innerHTML = `
-                    <button id="loadMoreBtn" class="w-full bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 font-bold py-3 rounded-xl transition shadow-sm text-sm flex items-center justify-center gap-2">
-                        <span>더 보기 (${displayLimit} / ${globalSongs.length})</span>
-                        <i class="fas fa-chevron-down"></i>
-                    </button>
-                `;
-                document.getElementById('loadMoreBtn').addEventListener('click', () => {
-                    displayLimit += 5; // ★ 누를 때마다 5개씩만 안전하게 추가!
-                    renderSongs();
-                });
-            } else {
-                moreBtnContainer.innerHTML = '';
-            }
-        }
-
-        // 3. 리스트 데이터 불러오기
-        function loadSongs(sortField, sortDirection) {
-            if (unsubscribe) unsubscribe();
-
-            const q = query(collection(db, collectionName), orderBy(sortField, sortDirection));
-
-            unsubscribe = onSnapshot(q, (snapshot) => {
-                globalSongs = [];
-                snapshot.forEach((docSnap) => {
-                    const data = docSnap.data();
-                    const id = docSnap.id;
-                    globalSongs.push({ id, ...data });
-                });
-
-                displayLimit = 5; // ★ 초기 로딩 개수를 5개로 세팅
-                renderSongs();
-            });
-        }
-
-        loadSongs('creationDate', 'desc');
-
-        document.getElementById('sortSelect').addEventListener('change', (e) => {
-            const selectedValue = e.target.value;
-            const [field, direction] = selectedValue.split('_');
-            loadSongs(field, direction);
         });
 
         window.openModal = (id) => {
@@ -390,23 +408,18 @@
                         <span class="text-xs text-gray-500 mt-2 font-medium">${dateStr} 제작</span>
                     </div>
                     <p class="text-sm text-gray-500 mb-4">작사/작곡: ${song.creator} | ${song.type}</p>
-                    
-                    ${audioPlayer}
-                    ${ytEmbed}
-
+                    ${audioPlayer} ${ytEmbed}
                     <div class="space-y-4 mt-6">
                         ${song.desc ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">📖 곡 설명 / 말씀</h4><p class="text-sm text-gray-700 bg-gray-50 p-4 rounded-xl leading-relaxed">${song.desc.replace(/\n/g, '<br>')}</p></div>` : ''}
                         ${song.lyrics ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">🎤 가사</h4><p class="text-sm text-gray-700 bg-gray-50 p-4 rounded-xl whitespace-pre-line leading-relaxed">${song.lyrics}</p></div>` : ''}
                         ${song.prompt ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">🛠️ 제작 정보</h4><p class="text-[11px] text-gray-500 bg-gray-100 p-4 rounded-xl whitespace-pre-line">${song.prompt}</p></div>` : ''}
                     </div>
-                    
                     <div class="mt-8 pt-4 border-t border-gray-100 flex justify-end gap-3">
                         <button onclick="editSong('${id}')" class="text-xs text-indigo-500 hover:text-indigo-700 font-bold bg-indigo-50 px-3 py-1.5 rounded-lg transition">수정하기</button>
                         <button onclick="deleteSong('${id}')" class="text-xs text-red-500 hover:text-red-700 font-bold bg-red-50 px-3 py-1.5 rounded-lg transition">삭제하기</button>
                     </div>
                 </div>
             `;
-
             document.getElementById('modalContent').innerHTML = contentHtml;
             document.getElementById('detailModal').classList.remove('hidden');
         };
@@ -418,14 +431,11 @@
 
         window.deleteSong = async (id) => {
             const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
-            if (pwd !== ADMIN_PASSWORD) {
-                alert("비밀번호가 일치하지 않습니다.");
-                return;
-            }
-
-            if (confirm("정말 이 곡의 기록을 삭제하시겠습니까? (삭제 후 복구 불가)")) {
+            if (pwd === ADMIN_PASSWORD && confirm("정말 이 곡의 기록을 삭제하시겠습니까?")) {
                 await deleteDoc(doc(db, collectionName, id));
-                closeModal();
+                location.reload(); // 삭제 후 깔끔하게 리스트 새로고침
+            } else if (pwd !== ADMIN_PASSWORD && pwd !== null) {
+                alert("비밀번호가 일치하지 않습니다.");
             }
         };
 
@@ -435,7 +445,6 @@
                 alert("비밀번호가 일치하지 않습니다.");
                 return;
             }
-
             const song = globalSongs.find(s => s.id === id);
             if (!song) return;
 
@@ -457,14 +466,8 @@
                         <input type="text" id="editYoutube" value="${song.youtubeUrl || ''}" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="유튜브 주소 링크">
                         
                         <div class="p-3 bg-white border border-dashed border-gray-300 rounded-lg space-y-3">
-                            <div>
-                                <label class="block text-[11px] font-bold text-gray-500 mb-1">🖼️ 새 타이틀 이미지 (변경할 경우만 선택)</label>
-                                <input type="file" id="editImage" accept="image/*" class="w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:bg-indigo-50 file:text-indigo-700">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-bold text-gray-500 mb-1">🎵 새 MP3 음원 (변경할 경우만 선택)</label>
-                                <input type="file" id="editMp3" accept="audio/mp3" class="w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:bg-indigo-50 file:text-indigo-700">
-                            </div>
+                            <div><label class="block text-[11px] font-bold text-gray-500 mb-1">🖼️ 새 타이틀 이미지</label><input type="file" id="editImage" accept="image/*" class="w-full text-xs file:bg-indigo-50 file:text-indigo-700"></div>
+                            <div><label class="block text-[11px] font-bold text-gray-500 mb-1">🎵 새 MP3 음원</label><input type="file" id="editMp3" accept="audio/mp3" class="w-full text-xs file:bg-indigo-50 file:text-indigo-700"></div>
                         </div>
 
                         <textarea id="editDesc" rows="2" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="곡 설명">${song.desc || ''}</textarea>
@@ -487,43 +490,27 @@
             if (!song) return;
 
             const title = document.getElementById('editTitle').value;
-            const type = document.getElementById('editType').value;
-            const creator = document.getElementById('editCreator').value;
             const creationDate = document.getElementById('editDate').value;
-            const youtubeUrl = document.getElementById('editYoutube').value;
-            const desc = document.getElementById('editDesc').value;
-            const lyrics = document.getElementById('editLyrics').value;
-            const promptInfo = document.getElementById('editPrompt').value;
-
-            const imageFile = document.getElementById('editImage').files[0];
-            const mp3File = document.getElementById('editMp3').files[0];
-
-            if (!title || !creationDate) {
-                alert("제목과 제작일은 필수입니다!");
-                return;
-            }
+            if (!title || !creationDate) { alert("제목과 제작일은 필수입니다!"); return; }
 
             document.getElementById('saveEditBtn').classList.add('hidden');
             document.getElementById('editStatus').classList.remove('hidden');
 
             try {
-                let imageUrl = song.imageUrl;
-                let thumbnailUrl = song.thumbnailUrl;
+                let imageUrl = song.imageUrl; let thumbnailUrl = song.thumbnailUrl; let mp3Url = song.mp3Url;
+                const imageFile = document.getElementById('editImage').files[0];
+                const mp3File = document.getElementById('editMp3').files[0];
 
                 if (imageFile) {
                     const timeStr = Date.now();
-
                     const imageRef = ref(storage, `${collectionName}/images/${timeStr}_${imageFile.name}`);
                     await uploadBytes(imageRef, imageFile);
                     imageUrl = await getDownloadURL(imageRef);
-
                     const thumbnailBlob = await generateThumbnail(imageFile);
                     const thumbnailRef = ref(storage, `${collectionName}/thumbnails/${timeStr}_${imageFile.name}.jpg`);
                     await uploadBytes(thumbnailRef, thumbnailBlob);
                     thumbnailUrl = await getDownloadURL(thumbnailRef);
                 }
-
-                let mp3Url = song.mp3Url;
                 if (mp3File) {
                     const mp3Ref = ref(storage, `${collectionName}/audio/${Date.now()}_${mp3File.name}`);
                     await uploadBytes(mp3Ref, mp3File);
@@ -531,23 +518,15 @@
                 }
 
                 await updateDoc(doc(db, collectionName, id), {
-                    title: title,
-                    type: type,
-                    creator: creator,
-                    creationDate: creationDate,
-                    youtubeUrl: youtubeUrl,
-                    desc: desc,
-                    lyrics: lyrics,
-                    prompt: promptInfo,
-                    imageUrl: imageUrl,
-                    thumbnailUrl: thumbnailUrl,
-                    mp3Url: mp3Url
+                    title: title, type: document.getElementById('editType').value, creator: document.getElementById('editCreator').value,
+                    creationDate: creationDate, youtubeUrl: document.getElementById('editYoutube').value,
+                    desc: document.getElementById('editDesc').value, lyrics: document.getElementById('editLyrics').value,
+                    prompt: document.getElementById('editPrompt').value, imageUrl: imageUrl, thumbnailUrl: thumbnailUrl, mp3Url: mp3Url
                 });
 
                 alert("성공적으로 수정되었습니다! ✨");
-                closeModal();
+                location.reload();
             } catch (error) {
-                console.error("수정 에러:", error);
                 alert("수정 중 오류가 발생했습니다.");
                 document.getElementById('saveEditBtn').classList.remove('hidden');
                 document.getElementById('editStatus').classList.add('hidden');
