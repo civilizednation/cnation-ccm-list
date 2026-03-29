@@ -64,7 +64,8 @@
             </div>
 
             <div id="songList" class="space-y-3">
-                <p class="text-center text-gray-400 py-4">데이터를 불러오는 중입니다...</p>
+                <p class="text-center text-gray-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i>데이터를 불러오는 중입니다...
+                </p>
             </div>
 
             <div id="moreBtnContainer" class="mt-4"></div>
@@ -171,7 +172,7 @@
         let unsubscribe = null;
         const ADMIN_PASSWORD = "1257";
 
-        // ★ 한 번에 보여줄 곡의 개수 (초기값 10개)
+        // 한 번에 보여줄 곡의 개수
         let displayLimit = 10;
 
         document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
@@ -190,7 +191,7 @@
             }
         });
 
-        // 썸네일 생성 함수
+        // 썸네일 생성 함수 (저장은 유지, 목록 노출만 제외)
         function generateThumbnail(file) {
             return new Promise((resolve) => {
                 const reader = new FileReader();
@@ -284,30 +285,33 @@
             }
         });
 
-        // ★ 2. 화면에 곡을 그려주는 함수 (더 보기 로직 추가) ★
+        // ★ 2. 화면에 곡을 그려주는 함수 (이미지 대신 예쁜 아이콘으로 교체) ★
         function renderSongs() {
             const listDiv = document.getElementById('songList');
             const moreBtnContainer = document.getElementById('moreBtnContainer');
             listDiv.innerHTML = '';
 
             if (globalSongs.length === 0) {
-                listDiv.innerHTML = '<p class="text-center text-gray-400 py-4">등록된 곡이 없습니다. 새 곡을 등록해주세요!</p>';
+                listDiv.innerHTML = '<p class="text-center text-gray-400 py-4">등록된 곡이 없거나 데이터를 불러오는 중입니다...</p>';
                 moreBtnContainer.innerHTML = '';
                 return;
             }
 
-            // displayLimit 개수만큼만 잘라서 보여줌
             const songsToShow = globalSongs.slice(0, displayLimit);
 
             songsToShow.forEach((data) => {
                 const tagColor = data.type === '창작곡' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
-                const dateStr = data.creationDate ? data.creationDate.split('-').join('. ') + '.' : '';
-                const displayImage = data.thumbnailUrl ? data.thumbnailUrl : data.imageUrl;
 
-                // loading="lazy" 속성으로 화면에 보일 때만 이미지를 다운로드하도록 최적화!
+                // 썸네일 대신 띄워줄 파스텔톤 컬러 박스와 음표 아이콘
+                const iconBgColor = data.type === '창작곡' ? 'bg-indigo-50 text-indigo-400' : 'bg-emerald-50 text-emerald-400';
+                const dateStr = data.creationDate ? data.creationDate.split('-').join('. ') + '.' : '';
+
                 const itemHtml = `
                     <div onclick="openModal('${data.id}')" class="flex items-center p-3 bg-white border border-gray-100 rounded-xl hover:shadow-md cursor-pointer transition">
-                        <img src="${displayImage}" loading="lazy" class="w-16 h-16 rounded-lg object-cover shadow-sm mr-4" alt="cover">
+                        <div class="w-12 h-12 rounded-lg flex items-center justify-center ${iconBgColor} mr-4 shrink-0">
+                            <i class="fas fa-music text-lg"></i>
+                        </div>
+                        
                         <div class="flex-1">
                             <div class="flex items-center justify-between mb-0.5">
                                 <h3 class="font-bold text-gray-800 text-base line-clamp-1">${data.title}</h3>
@@ -318,7 +322,7 @@
                                 <span class="text-xs text-gray-500">${data.creator}</span>
                             </div>
                         </div>
-                        <div class="w-8 flex justify-end text-indigo-400">
+                        <div class="w-8 flex justify-end text-gray-300">
                             <i class="fas fa-chevron-right"></i>
                         </div>
                     </div>
@@ -326,7 +330,6 @@
                 listDiv.innerHTML += itemHtml;
             });
 
-            // 아직 보여줄 곡이 더 남아있다면 '더 보기' 버튼 생성
             if (displayLimit < globalSongs.length) {
                 moreBtnContainer.innerHTML = `
                     <button id="loadMoreBtn" class="w-full bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 font-bold py-3 rounded-xl transition shadow-sm text-sm flex items-center justify-center gap-2">
@@ -335,11 +338,11 @@
                     </button>
                 `;
                 document.getElementById('loadMoreBtn').addEventListener('click', () => {
-                    displayLimit += 10; // 10개 추가
-                    renderSongs(); // 다시 그리기
+                    displayLimit += 10;
+                    renderSongs();
                 });
             } else {
-                moreBtnContainer.innerHTML = ''; // 다 보여줬으면 버튼 숨김
+                moreBtnContainer.innerHTML = '';
             }
         }
 
@@ -357,8 +360,8 @@
                     globalSongs.push({ id, ...data });
                 });
 
-                displayLimit = 10; // 정렬을 바꾸거나 새로고침하면 다시 10개부터 시작
-                renderSongs(); // 화면 그리기 호출
+                displayLimit = 10;
+                renderSongs();
             });
         }
 
@@ -370,7 +373,7 @@
             loadSongs(field, direction);
         });
 
-        // 4. 모달 상세화면
+        // 4. 모달 상세화면 (상세화면에서는 원본 이미지가 정상적으로 나옵니다!)
         window.openModal = (id) => {
             const song = globalSongs.find(s => s.id === id);
             if (!song) return;
