@@ -172,8 +172,8 @@
         let unsubscribe = null;
         const ADMIN_PASSWORD = "1257";
 
-        // 한 번에 보여줄 곡의 개수
-        let displayLimit = 10;
+        // ★ 한 번에 보여줄 곡의 개수를 5개로 초경량화! ★
+        let displayLimit = 5;
 
         document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
 
@@ -191,7 +191,6 @@
             }
         });
 
-        // 썸네일 생성 함수 (저장은 유지, 목록 노출만 제외)
         function generateThumbnail(file) {
             return new Promise((resolve) => {
                 const reader = new FileReader();
@@ -225,7 +224,6 @@
             });
         }
 
-        // 1. 등록 로직
         document.getElementById('addBtn').addEventListener('click', async () => {
             const title = document.getElementById('titleInput').value;
             const type = document.getElementById('typeInput').value;
@@ -285,7 +283,7 @@
             }
         });
 
-        // ★ 2. 화면에 곡을 그려주는 함수 (이미지 대신 예쁜 아이콘으로 교체) ★
+        // ★ 화면에 곡을 그려주는 함수 (썸네일 이미지 복구 & 5개씩 렌더링) ★
         function renderSongs() {
             const listDiv = document.getElementById('songList');
             const moreBtnContainer = document.getElementById('moreBtnContainer');
@@ -301,16 +299,14 @@
 
             songsToShow.forEach((data) => {
                 const tagColor = data.type === '창작곡' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
-
-                // 썸네일 대신 띄워줄 파스텔톤 컬러 박스와 음표 아이콘
-                const iconBgColor = data.type === '창작곡' ? 'bg-indigo-50 text-indigo-400' : 'bg-emerald-50 text-emerald-400';
                 const dateStr = data.creationDate ? data.creationDate.split('-').join('. ') + '.' : '';
+
+                // 썸네일 이미지를 다시 불러오도록 원복!
+                const displayImage = data.thumbnailUrl ? data.thumbnailUrl : data.imageUrl;
 
                 const itemHtml = `
                     <div onclick="openModal('${data.id}')" class="flex items-center p-3 bg-white border border-gray-100 rounded-xl hover:shadow-md cursor-pointer transition">
-                        <div class="w-12 h-12 rounded-lg flex items-center justify-center ${iconBgColor} mr-4 shrink-0">
-                            <i class="fas fa-music text-lg"></i>
-                        </div>
+                        <img src="${displayImage}" loading="lazy" class="w-16 h-16 rounded-lg object-cover shadow-sm mr-4 shrink-0" alt="cover">
                         
                         <div class="flex-1">
                             <div class="flex items-center justify-between mb-0.5">
@@ -322,7 +318,7 @@
                                 <span class="text-xs text-gray-500">${data.creator}</span>
                             </div>
                         </div>
-                        <div class="w-8 flex justify-end text-gray-300">
+                        <div class="w-8 flex justify-end text-indigo-400">
                             <i class="fas fa-chevron-right"></i>
                         </div>
                     </div>
@@ -338,7 +334,7 @@
                     </button>
                 `;
                 document.getElementById('loadMoreBtn').addEventListener('click', () => {
-                    displayLimit += 10;
+                    displayLimit += 5; // ★ 누를 때마다 5개씩만 안전하게 추가!
                     renderSongs();
                 });
             } else {
@@ -360,7 +356,7 @@
                     globalSongs.push({ id, ...data });
                 });
 
-                displayLimit = 10;
+                displayLimit = 5; // ★ 초기 로딩 개수를 5개로 세팅
                 renderSongs();
             });
         }
@@ -373,7 +369,6 @@
             loadSongs(field, direction);
         });
 
-        // 4. 모달 상세화면 (상세화면에서는 원본 이미지가 정상적으로 나옵니다!)
         window.openModal = (id) => {
             const song = globalSongs.find(s => s.id === id);
             if (!song) return;
@@ -421,7 +416,6 @@
             document.getElementById('modalContent').innerHTML = '';
         };
 
-        // 5. 삭제 기능
         window.deleteSong = async (id) => {
             const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
             if (pwd !== ADMIN_PASSWORD) {
@@ -435,7 +429,6 @@
             }
         };
 
-        // 6. 수정 모드 진입
         window.editSong = (id) => {
             const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
             if (pwd !== ADMIN_PASSWORD) {
@@ -489,7 +482,6 @@
             document.getElementById('modalContent').innerHTML = editHtml;
         };
 
-        // 7. 수정 사항 저장
         window.saveEdit = async (id) => {
             const song = globalSongs.find(s => s.id === id);
             if (!song) return;
