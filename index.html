@@ -4,10 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>cnation CCM 아카이브 🎵</title>
-
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#4f46e5">
+    <title>무석연합교회 성가대 연습</title>
 
     <link rel="icon" type="image/x-icon" href="./favicon.ico">
     <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png">
@@ -18,137 +15,384 @@
 
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="cnation CCM">
+    <meta name="apple-mobile-web-app-title" content="성가대연습">
 
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
     <style>
-        .modal-content {
-            max-height: 85vh;
-            overflow-y: auto;
+        .part-checkbox:checked+div { background-color: #4f46e5; color: white; border-color: #4f46e5; }
+        .part-checkbox-sop:checked+div { background-color: #ec4899; color: white; border-color: #ec4899; }
+        .part-checkbox-alto:checked+div { background-color: #8b5cf6; color: white; border-color: #8b5cf6; }
+        .part-checkbox-tenor:checked+div { background-color: #10b981; color: white; border-color: #10b981; }
+        .part-checkbox-bass:checked+div { background-color: #f97316; color: white; border-color: #f97316; }
+
+        .toggle-checkbox:checked { right: 0; border-color: #4f46e5; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #4f46e5; }
+        .toggle-checkbox { right: 4; z-index: 1; border-color: #e5e7eb; transition: all 0.3s; }
+        .toggle-label { width: 3rem; height: 1.5rem; background-color: #e5e7eb; border-radius: 9999px; transition: all 0.3s; }
+
+        .badge-soprano { background-color: #fce7f3; color: #be185d; }
+        .badge-alto { background-color: #ede9fe; color: #6d28d9; }
+        .badge-tenor { background-color: #d1fae5; color: #065f46; }
+        .badge-bass { background-color: #ffedd5; color: #c2410c; }
+        .badge-full { background-color: #e0e7ff; color: #3730a3; }
+
+        .label-soprano { color: #be185d; font-weight: 700; }
+        .label-alto { color: #6d28d9; font-weight: 700; }
+        .label-tenor { color: #065f46; font-weight: 700; }
+        .label-bass { color: #c2410c; font-weight: 700; }
+
+        @keyframes bounce-up-right { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(10px,-10px); } }
+        .animate-bounce-custom { animation: bounce-up-right 1s infinite; }
+
+        /* 이미지 슬롯 스타일 */
+        .img-slot { position: relative; }
+        .img-slot .preview-thumb {
+            width: 56px; height: 56px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 2px solid #a5b4fc;
+        }
+        .img-slot .remove-img-btn {
+            position: absolute; top: -6px; right: -6px;
+            background: #ef4444; color: white;
+            border-radius: 999px; width: 18px; height: 18px;
+            font-size: 10px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border: 2px solid white;
+        }
+        .img-slot-empty {
+            width: 56px; height: 56px;
+            border: 2px dashed #c7d2fe;
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            color: #a5b4fc; font-size: 20px;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .img-slot-empty:hover { border-color: #6366f1; background: #eef2ff; }
+
+        /* 기존 이미지 썸네일 */
+        .existing-img-thumb {
+            position: relative;
+            display: inline-block;
+        }
+        .existing-img-thumb img {
+            width: 56px; height: 56px;
+            object-fit: cover; border-radius: 8px;
+            border: 2px solid #6366f1;
+        }
+        .existing-img-thumb .del-btn {
+            position: absolute; top: -6px; right: -6px;
+            background: #ef4444; color: white;
+            border-radius: 999px; width: 18px; height: 18px;
+            font-size: 10px; display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border: 2px solid white;
         }
     </style>
 </head>
 
-<body class="bg-gray-100 min-h-screen font-sans text-gray-800 pb-20">
+<body class="bg-gray-100 font-sans text-gray-800 pb-20 relative">
 
-    <div class="max-w-2xl mx-auto pt-6 px-4">
-
-        <div
-            class="relative rounded-2xl shadow-lg mb-8 overflow-hidden bg-gray-800 flex items-center justify-center min-h-[180px]">
-            <div class="absolute inset-0 bg-cover bg-center bg-no-repeat"
-                style="background-image: url('./cnation-ccm.png');"></div>
-            <div class="absolute inset-0 bg-black/40 backdrop-blur-[2px]"></div>
-            <div class="relative z-10 p-6 text-center w-full">
-                <h1
-                    class="text-4xl sm:text-5xl font-extrabold text-white mb-2 tracking-widest drop-shadow-lg uppercase">
-                    cnation CCM
-                </h1>
-                <p class="text-gray-100 text-sm tracking-widest drop-shadow-md font-medium">
-                    은혜와 찬양의 기록
+    <!-- 위챗 오버레이 -->
+    <div id="wechatOverlay"
+        class="hidden fixed inset-0 z-[9999] bg-gray-900/95 flex flex-col items-center pt-8 px-6 backdrop-blur-sm overflow-y-auto pb-10">
+        <div class="w-full max-w-sm text-center mt-2">
+            <div class="flex justify-end mb-2 pr-2">
+                <i class="fas fa-arrow-up text-5xl text-yellow-400 animate-bounce-custom" style="transform: rotate(45deg);"></i>
+            </div>
+            <h2 class="text-2xl font-black mb-2 leading-tight text-white">화면 우측 상단의<br>
+                <span class="bg-gray-700 px-3 py-1 rounded-lg inline-block my-1 tracking-widest text-white">···</span> 버튼을 눌러주세요</h2>
+            <p class="text-[17px] font-bold text-yellow-400 mb-5 bg-yellow-900/30 inline-block px-4 py-2 rounded-xl border border-yellow-400/50">
+                그리고 <span class="text-white">'기본 브라우저에서 열기'</span> 선택!
+            </p>
+            <img src="./wc.jpg" alt="위챗 기본 브라우저 열기 안내"
+                class="w-full rounded-xl shadow-2xl border-2 border-gray-600 mb-6 object-contain">
+            <div class="bg-gray-800 p-4 rounded-xl text-left w-full mb-6 border border-gray-700">
+                <p class="text-sm text-gray-200 font-bold mb-2"><i class="fas fa-exclamation-triangle text-red-400 mr-2"></i>속도 저하 경고</p>
+                <p class="text-[13px] text-gray-400 leading-relaxed">
+                    위챗에서 직접 열기를 하면 앱 구동 <strong>속도가 현저히 느려지거나 악보가 정상적으로 보이지 않는 현상</strong>이 발생할 수 있습니다.
                 </p>
             </div>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-sm p-4 mb-6 relative">
-            <div class="flex justify-between items-center mb-4 px-2">
-                <h2 class="text-lg font-bold text-gray-700">전체 곡 목록</h2>
-                <select id="sortSelect"
-                    class="text-xs border border-gray-300 text-gray-600 py-1 px-2 rounded-lg focus:ring-2 focus:ring-indigo-400 bg-gray-50 outline-none cursor-pointer">
-                    <option value="creationDate_desc">최신 제작일순 🔽</option>
-                    <option value="creationDate_asc">오래된 제작일순 🔼</option>
-                    <option value="title_asc">제목 가나다순 🔼</option>
-                    <option value="title_desc">제목 역순 🔽</option>
-                    <option value="creator_asc">작사/작곡자순 🔼</option>
-                </select>
+            <div class="border-t border-gray-700 pt-5">
+                <p class="text-[12px] text-gray-400 mb-3">속도가 좀 느려지더라도 위챗에서 열기를 원하시면<br>아래 버튼을 눌러주세요.</p>
+                <button onclick="closeWechatOverlay()"
+                    class="w-full px-5 py-3.5 bg-gray-700 hover:bg-gray-600 active:bg-gray-500 text-gray-200 text-sm font-bold rounded-xl transition shadow-md border border-gray-600">
+                    <i class="fab fa-weixin mr-2 text-green-400"></i>그냥 위챗에서 계속하기
+                </button>
             </div>
-
-            <div id="songList"></div>
-
-            <div id="moreBtnContainer" class="mt-4"></div>
         </div>
+    </div>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <button id="toggleFormBtn"
-                class="w-full flex justify-between items-center p-5 focus:outline-none hover:bg-gray-50 transition">
-                <h2 class="text-lg font-bold text-gray-700">새로운 곡 등록하기</h2>
-                <span id="toggleIcon"
-                    class="text-xl text-indigo-600 font-bold transition-transform duration-300">➕</span>
-            </button>
+    <div class="w-full max-w-5xl mx-auto bg-white min-h-screen shadow-2xl relative overflow-x-hidden">
 
-            <div id="formContent" class="hidden px-5 pb-6">
-                <div class="grid grid-cols-1 gap-4 mt-2 border-t border-gray-100 pt-4">
-                    <div class="flex gap-2">
-                        <select id="typeInput"
-                            class="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 bg-gray-50 text-sm outline-none">
-                            <option value="창작곡">창작곡</option>
-                            <option value="커버송">커버송</option>
-                        </select>
-                        <input type="text" id="titleInput" placeholder="곡 제목 (예: 나를 부르신 이유)"
-                            class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none">
+        <!-- 홈 뷰 -->
+        <div id="homeView" class="flex flex-col min-h-screen bg-indigo-50 p-6 relative">
+            <div class="flex-1 flex flex-col items-center justify-center">
+                <img src="msyhsgd.jpg" alt="무석연합교회 성가대" class="w-full max-w-xs mb-8 object-contain rounded-xl"
+                    onerror="this.src='https://via.placeholder.com/300x150?text=Choir+Image'">
+
+                <div class="w-full max-w-2xl bg-white p-4 rounded-2xl shadow-sm border border-indigo-100 mb-6">
+                    <h3 class="text-xs font-bold text-gray-500 mb-3 uppercase tracking-wider text-center">연습할 파트 설정 (복수 선택 가능)</h3>
+                    <div class="flex flex-wrap justify-center gap-2" id="partSelectionContainer">
+                        <label class="cursor-pointer"><input type="checkbox" value="전체" class="hidden part-checkbox" onchange="handlePartSelection(this)" checked>
+                            <div class="px-4 py-2 rounded-full border border-gray-200 text-sm font-bold text-gray-600 transition-colors">전체</div></label>
+                        <label class="cursor-pointer"><input type="checkbox" value="합창" class="hidden part-checkbox" onchange="handlePartSelection(this)">
+                            <div class="px-4 py-2 rounded-full border border-gray-200 text-sm font-bold text-gray-600 transition-colors">합창</div></label>
+                        <label class="cursor-pointer"><input type="checkbox" value="소프라노" class="hidden part-checkbox part-checkbox-sop" onchange="handlePartSelection(this)">
+                            <div class="px-4 py-2 rounded-full border border-pink-200 text-sm font-bold text-pink-500 transition-colors">소프라노</div></label>
+                        <label class="cursor-pointer"><input type="checkbox" value="알토" class="hidden part-checkbox part-checkbox-alto" onchange="handlePartSelection(this)">
+                            <div class="px-4 py-2 rounded-full border border-violet-200 text-sm font-bold text-violet-500 transition-colors">알토</div></label>
+                        <label class="cursor-pointer"><input type="checkbox" value="테너" class="hidden part-checkbox part-checkbox-tenor" onchange="handlePartSelection(this)">
+                            <div class="px-4 py-2 rounded-full border border-emerald-200 text-sm font-bold text-emerald-600 transition-colors">테너</div></label>
+                        <label class="cursor-pointer"><input type="checkbox" value="베이스" class="hidden part-checkbox part-checkbox-bass" onchange="handlePartSelection(this)">
+                            <div class="px-4 py-2 rounded-full border border-orange-200 text-sm font-bold text-orange-500 transition-colors">베이스</div></label>
                     </div>
+                </div>
 
-                    <div class="flex gap-2">
-                        <input type="text" id="creatorInput" placeholder="작사/작곡 (예: 문명국)"
-                            class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none">
-                        <div class="relative w-36">
-                            <input type="date" id="dateInput" title="곡 제작일"
-                                class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm text-gray-600 bg-gray-50 outline-none">
-                        </div>
+                <div class="w-full max-w-2xl">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <button onclick="openPractice('이번주')"
+                            class="w-full py-4 bg-white rounded-xl shadow-sm border border-indigo-100 text-gray-800 font-bold hover:shadow-md transition flex items-center justify-between px-6">
+                            <span class="flex items-center gap-3"><i class="fas fa-calendar-day text-indigo-400"></i> 이번주 곡</span><i class="fas fa-chevron-right text-gray-300"></i>
+                        </button>
+                        <button onclick="openPractice('다음주')"
+                            class="w-full py-4 bg-white rounded-xl shadow-sm border border-indigo-100 text-gray-800 font-bold hover:shadow-md transition flex items-center justify-between px-6">
+                            <span class="flex items-center gap-3"><i class="fas fa-calendar-week text-indigo-400"></i> 다음주 곡</span><i class="fas fa-chevron-right text-gray-300"></i>
+                        </button>
+                        <button onclick="openPractice('이번주_다음주')"
+                            class="w-full py-4 bg-white rounded-xl shadow-sm border border-indigo-100 text-gray-800 font-bold hover:shadow-md transition flex items-center justify-between px-6 md:col-span-2">
+                            <span class="flex items-center gap-3"><i class="fas fa-layer-group text-indigo-400"></i> 이번주 + 다음주 곡 연습</span><i class="fas fa-chevron-right text-gray-300"></i>
+                        </button>
+                        <button onclick="openPastPractice()"
+                            class="w-full py-4 bg-white rounded-xl shadow-sm border border-indigo-100 text-gray-800 font-bold hover:shadow-md transition flex items-center justify-between px-6">
+                            <span class="flex items-center gap-3"><i class="fas fa-history text-indigo-400"></i> 기존 곡 연습</span><i class="fas fa-chevron-right text-gray-300"></i>
+                        </button>
+                        <button onclick="openPractice('고정')"
+                            class="w-full py-4 bg-white rounded-xl shadow-sm border border-indigo-100 text-gray-800 font-bold hover:shadow-md transition flex items-center justify-between px-6">
+                            <span class="flex items-center gap-3"><i class="fas fa-church text-indigo-400"></i> 고정송 (입례/기도/축도)</span><i class="fas fa-chevron-right text-gray-300"></i>
+                        </button>
                     </div>
-
-                    <input type="text" id="youtubeInput" placeholder="유튜브 주소 링크"
-                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none">
-
-                    <div class="p-4 bg-gray-50 border border-dashed border-gray-300 rounded-lg space-y-3">
-                        <div>
-                            <label class="block text-[11px] font-bold text-gray-500 mb-1 uppercase tracking-wider">🖼️
-                                타이틀 이미지 (필수)</label>
-                            <input type="file" id="imageInput" accept="image/*"
-                                class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-                        </div>
-                        <div>
-                            <label class="block text-[11px] font-bold text-gray-500 mb-1 uppercase tracking-wider">🎵
-                                MP3 음원 (선택)</label>
-                            <input type="file" id="mp3Input" accept="audio/mp3"
-                                class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
-                        </div>
+                    <div class="pt-4 border-t border-indigo-200 mt-6">
+                        <button onclick="openSetup()"
+                            class="w-full py-4 bg-gray-800 rounded-xl shadow-md text-white font-bold hover:bg-gray-900 transition flex items-center justify-center gap-2">
+                            <i class="fas fa-link"></i> 관리자 설정 (링크 및 악보)
+                        </button>
                     </div>
-
-                    <textarea id="descInput" rows="2" placeholder="곡 설명 (설교 본문, 핵심 메시지 등)"
-                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none"></textarea>
-                    <textarea id="lyricsInput" rows="5" placeholder="가사 (Verse, Chorus 등 줄바꿈 유지)"
-                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none"></textarea>
-                    <textarea id="promptInput" rows="2" placeholder="제작 정보 (Suno 프롬프트, 스타일 등)"
-                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none"></textarea>
-
-                    <button id="addBtn"
-                        class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 shadow-md mt-2">
-                        업로드 및 등록하기
-                    </button>
-                    <p id="uploadStatus" class="text-sm text-center text-indigo-600 font-bold hidden">업로드 중입니다... 잠시만
-                        기다려주세요 ⏳</p>
                 </div>
             </div>
         </div>
-    </div>
 
-    <div id="detailModal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl relative flex flex-col modal-content"
-            style="max-height: 85vh;">
-            <button onclick="closeModal()"
-                class="absolute top-3 right-3 text-gray-500 hover:text-gray-900 bg-white/90 backdrop-blur rounded-full w-8 h-8 flex items-center justify-center shadow-lg z-20 transition-all">
-                <i class="fas fa-times text-lg"></i>
-            </button>
-            <div id="modalContent" class="overflow-y-auto w-full rounded-2xl pb-6">
+        <!-- 연습 뷰 -->
+        <div id="practiceView" class="hidden flex flex-col min-h-screen bg-gray-50 pb-10">
+            <div class="bg-indigo-600 text-white p-4 flex items-center justify-between shadow-md sticky top-0 z-10">
+                <button onclick="goHome()" class="text-xl px-2 hover:scale-110 transition-transform"><i class="fas fa-arrow-left"></i></button>
+                <h2 id="practiceTitle" class="font-bold text-lg tracking-wide">곡 연습</h2>
+                <div class="w-8"></div>
+            </div>
+            <div id="pastDateSelector" class="hidden p-4 bg-white shadow-sm z-0 relative border-b border-gray-100">
+                <div class="max-w-2xl mx-auto">
+                    <select id="pastDateDropdown"
+                        class="w-full border border-gray-300 rounded-xl px-4 py-3 text-center font-bold text-gray-700 focus:outline-none focus:border-indigo-500"
+                        onchange="loadPastPractice()">
+                        <option value="">날짜(일요일)를 선택하세요</option>
+                    </select>
+                </div>
+            </div>
+            <div id="practiceContainer" class="flex-1 p-4 md:p-6 overflow-y-auto"></div>
+        </div>
+
+        <!-- 설정 뷰 -->
+        <div id="setupView" class="hidden flex flex-col min-h-screen bg-gray-50 pb-20">
+            <div class="bg-gray-800 text-white p-4 flex items-center justify-between shadow-md sticky top-0 z-10">
+                <button onclick="goHome()" class="text-xl px-2 hover:scale-110 transition-transform"><i class="fas fa-arrow-left"></i></button>
+                <h2 class="font-bold text-lg tracking-wide">설정 (링크 및 악보)</h2>
+                <div class="w-8"></div>
+            </div>
+
+            <div class="flex-1 p-4 md:p-6 space-y-6 overflow-y-auto max-w-4xl mx-auto w-full">
+                <div class="bg-white p-5 md:p-8 rounded-2xl shadow-sm border border-gray-200">
+                    <h3 class="font-bold text-lg text-indigo-700 mb-4 border-b border-gray-100 pb-2">
+                        <i class="fas fa-calendar-alt mr-2"></i>주일 찬양 설정
+                    </h3>
+
+                    <div class="space-y-5">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 mb-1">적용 날짜 (일요일)</label>
+                                <input type="date" id="setupDate"
+                                    class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none"
+                                    onchange="loadSetupForDate()">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-500 mb-1">찬양 제목</label>
+                                <input type="text" id="setupTitle" placeholder="예: 나를 부르신 이유"
+                                    class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none">
+                            </div>
+                        </div>
+
+                        <!-- ===== 악보 첨부 섹션 ===== -->
+                        <div class="space-y-4">
+
+                            <!-- PDF 첨부 -->
+                            <div class="bg-red-50 p-4 rounded-xl border border-red-100">
+                                <label class="block text-sm font-bold text-red-700 mb-2">
+                                    <i class="fas fa-file-pdf mr-1 text-red-500"></i>악보 첨부 (PDF)
+                                </label>
+                                <input type="file" id="setupSheetMusic" accept="application/pdf"
+                                    class="w-full text-sm mt-1 file:mr-4 file:py-2.5 file:px-5 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-red-100 file:text-red-700 hover:file:bg-red-200 cursor-pointer transition"
+                                    onchange="onPdfSelected()">
+                                <div id="currentSheetMusicStatus" class="text-xs text-gray-500 mt-2 italic">현재 등록된 악보가 없습니다.</div>
+
+                                <!-- 기존 PDF 삭제 버튼 (등록된 경우에만 표시) -->
+                                <button id="deletePdfBtn" onclick="deleteCurrentPdf()"
+                                    class="hidden mt-2 px-4 py-1.5 bg-red-100 text-red-600 text-xs font-bold rounded-lg border border-red-200 hover:bg-red-200 transition">
+                                    <i class="fas fa-trash mr-1"></i>등록된 PDF 악보 삭제
+                                </button>
+                            </div>
+
+                            <!-- 이미지 첨부 -->
+                            <div class="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                <div class="flex items-center justify-between mb-2">
+                                    <label class="block text-sm font-bold text-indigo-800">
+                                        <i class="fas fa-images mr-1 text-indigo-500"></i>악보 첨부 (이미지 파일)
+                                    </label>
+                                    <span class="text-[11px] text-indigo-400 font-bold">JPG / PNG · 최대 20장</span>
+                                </div>
+                                <p class="text-[11px] text-indigo-400 mb-3">악보 순서대로 한 장씩 추가해 주세요.</p>
+
+                                <!-- 기존 이미지 목록 -->
+                                <div id="existingImagesArea" class="hidden mb-3">
+                                    <p class="text-[11px] font-bold text-gray-500 mb-2">현재 등록된 이미지 악보</p>
+                                    <div id="existingImagesList" class="flex flex-wrap gap-2"></div>
+                                    <button onclick="deleteAllExistingImages()"
+                                        class="mt-2 px-4 py-1.5 bg-red-100 text-red-600 text-xs font-bold rounded-lg border border-red-200 hover:bg-red-200 transition">
+                                        <i class="fas fa-trash mr-1"></i>등록된 이미지 전체 삭제
+                                    </button>
+                                </div>
+
+                                <!-- 새 이미지 슬롯 -->
+                                <div id="imageSlotArea" class="flex flex-wrap gap-2 items-center">
+                                    <!-- 슬롯은 JS로 동적 생성 -->
+                                </div>
+                                <div class="mt-3 flex gap-2">
+                                    <button onclick="addImageSlot()"
+                                        class="px-4 py-2 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-200 hover:bg-indigo-200 transition">
+                                        <i class="fas fa-plus mr-1"></i>이미지 슬롯 추가
+                                    </button>
+                                    <button onclick="clearAllImageSlots()"
+                                        class="px-4 py-2 bg-gray-100 text-gray-500 text-xs font-bold rounded-lg border border-gray-200 hover:bg-gray-200 transition">
+                                        <i class="fas fa-times mr-1"></i>새 이미지 전체 취소
+                                    </button>
+                                </div>
+                                <p id="imageSlotCount" class="text-[11px] text-indigo-400 mt-2">추가된 슬롯: 0개</p>
+                            </div>
+
+                        </div>
+                        <!-- ===== 악보 첨부 섹션 끝 ===== -->
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t border-dashed border-gray-200 mt-2">
+                            <div class="flex items-center gap-2"><span class="w-14 text-xs font-bold text-indigo-600 text-right">합창</span>
+                                <input type="text" id="setupFull" placeholder="유튜브 링크" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:border-indigo-500 outline-none"></div>
+                            <div class="flex items-center gap-2"><span class="w-14 text-xs label-soprano text-right">소프라노</span>
+                                <input type="text" id="setupSop" placeholder="유튜브 링크" class="flex-1 border border-pink-200 rounded-lg px-3 py-2 text-sm focus:border-pink-400 outline-none"></div>
+                            <div class="flex items-center gap-2"><span class="w-14 text-xs label-alto text-right">알토</span>
+                                <input type="text" id="setupAlto" placeholder="유튜브 링크" class="flex-1 border border-violet-200 rounded-lg px-3 py-2 text-sm focus:border-violet-400 outline-none"></div>
+                            <div class="flex items-center gap-2"><span class="w-14 text-xs label-tenor text-right">테너</span>
+                                <input type="text" id="setupTenor" placeholder="유튜브 링크" class="flex-1 border border-emerald-200 rounded-lg px-3 py-2 text-sm focus:border-emerald-400 outline-none"></div>
+                            <div class="flex items-center gap-2"><span class="w-14 text-xs label-bass text-right">베이스</span>
+                                <input type="text" id="setupBass" placeholder="유튜브 링크" class="flex-1 border border-orange-200 rounded-lg px-3 py-2 text-sm focus:border-orange-400 outline-none"></div>
+                        </div>
+
+                        <button onclick="saveWeeklyLinks()" id="saveWeeklyBtn"
+                            class="w-full mt-6 py-4 bg-indigo-600 text-white text-lg font-bold rounded-xl shadow-md hover:bg-indigo-700 transition">
+                            주일 찬양 및 악보 저장
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 고정곡 설정 -->
+                <div class="bg-white p-5 md:p-8 rounded-2xl shadow-sm border border-gray-200">
+                    <h3 class="font-bold text-lg text-gray-800 mb-2 border-b border-gray-100 pb-2">
+                        <i class="fas fa-church mr-2"></i>고정곡 파트별 링크 입력
+                    </h3>
+                    <p class="text-[11px] text-gray-400 mb-4">한번 입력해두면 계속 유지됩니다.</p>
+
+                    <div class="space-y-6">
+                        <!-- 입례송 -->
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                            <h4 class="text-sm font-bold text-indigo-700 mb-3 flex items-center gap-2"><i class="fas fa-caret-right"></i> 입례송</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] font-bold text-indigo-600 text-right">합창</span><input type="text" id="setupIntroitFull" class="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-xs focus:border-indigo-500 outline-none"></div>
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] label-soprano text-right">소프라노</span><input type="text" id="setupIntroitSop" class="flex-1 border border-pink-200 rounded-md px-2 py-1.5 text-xs focus:border-pink-400 outline-none"></div>
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] label-alto text-right">알토</span><input type="text" id="setupIntroitAlto" class="flex-1 border border-violet-200 rounded-md px-2 py-1.5 text-xs focus:border-violet-400 outline-none"></div>
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] label-tenor text-right">테너</span><input type="text" id="setupIntroitTenor" class="flex-1 border border-emerald-200 rounded-md px-2 py-1.5 text-xs focus:border-emerald-400 outline-none"></div>
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] label-bass text-right">베이스</span><input type="text" id="setupIntroitBass" class="flex-1 border border-orange-200 rounded-md px-2 py-1.5 text-xs focus:border-orange-400 outline-none"></div>
+                            </div>
+                        </div>
+                        <!-- 기도송 -->
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                            <h4 class="text-sm font-bold text-indigo-700 mb-3 flex items-center gap-2"><i class="fas fa-caret-right"></i> 기도송</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] font-bold text-indigo-600 text-right">합창</span><input type="text" id="setupPrayerFull" class="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-xs focus:border-indigo-500 outline-none"></div>
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] label-soprano text-right">소프라노</span><input type="text" id="setupPrayerSop" class="flex-1 border border-pink-200 rounded-md px-2 py-1.5 text-xs focus:border-pink-400 outline-none"></div>
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] label-alto text-right">알토</span><input type="text" id="setupPrayerAlto" class="flex-1 border border-violet-200 rounded-md px-2 py-1.5 text-xs focus:border-violet-400 outline-none"></div>
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] label-tenor text-right">테너</span><input type="text" id="setupPrayerTenor" class="flex-1 border border-emerald-200 rounded-md px-2 py-1.5 text-xs focus:border-emerald-400 outline-none"></div>
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] label-bass text-right">베이스</span><input type="text" id="setupPrayerBass" class="flex-1 border border-orange-200 rounded-md px-2 py-1.5 text-xs focus:border-orange-400 outline-none"></div>
+                            </div>
+                        </div>
+                        <!-- 축도송 -->
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
+                            <h4 class="text-sm font-bold text-indigo-700 mb-3 flex items-center gap-2"><i class="fas fa-caret-right"></i> 축도송</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] font-bold text-indigo-600 text-right">합창</span><input type="text" id="setupBeneFull" class="flex-1 border border-gray-300 rounded-md px-2 py-1.5 text-xs focus:border-indigo-500 outline-none"></div>
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] label-soprano text-right">소프라노</span><input type="text" id="setupBeneSop" class="flex-1 border border-pink-200 rounded-md px-2 py-1.5 text-xs focus:border-pink-400 outline-none"></div>
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] label-alto text-right">알토</span><input type="text" id="setupBeneAlto" class="flex-1 border border-violet-200 rounded-md px-2 py-1.5 text-xs focus:border-violet-400 outline-none"></div>
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] label-tenor text-right">테너</span><input type="text" id="setupBeneTenor" class="flex-1 border border-emerald-200 rounded-md px-2 py-1.5 text-xs focus:border-emerald-400 outline-none"></div>
+                                <div class="flex items-center gap-2"><span class="w-12 text-[11px] label-bass text-right">베이스</span><input type="text" id="setupBeneBass" class="flex-1 border border-orange-200 rounded-md px-2 py-1.5 text-xs focus:border-orange-400 outline-none"></div>
+                            </div>
+                        </div>
+                        <button onclick="saveFixedLinks()" id="saveFixedBtn"
+                            class="w-full mt-6 py-4 bg-gray-800 text-white text-lg font-bold rounded-xl shadow-md hover:bg-gray-900 transition">
+                            고정곡 저장
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
+
+        <!-- PDF 모달 -->
+        <div id="pdfModal" class="hidden fixed inset-0 z-50 bg-gray-900 flex flex-col">
+            <div class="bg-gray-800 text-white p-4 flex items-center justify-between shadow-md">
+                <h3 id="pdfModalTitle" class="font-bold text-sm tracking-wide flex-1 truncate pr-4">악보 크게보기</h3>
+                <button onclick="closePdfModal()" class="text-white text-2xl px-2 hover:text-red-400 transition-colors">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="pdfModalContent"
+                class="flex-1 overflow-y-auto overflow-x-auto p-2 bg-gray-900 flex flex-col items-center gap-2">
+            </div>
+        </div>
+
     </div>
 
     <script type="module">
+        // 위챗 감지
+        document.addEventListener("DOMContentLoaded", function () {
+            const isWeChat = /MicroMessenger/i.test(navigator.userAgent);
+            if (isWeChat) {
+                document.getElementById('wechatOverlay').classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            }
+        });
+        window.closeWechatOverlay = () => {
+            document.getElementById('wechatOverlay').classList.add('hidden');
+            document.body.style.overflow = '';
+        };
+
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        // ★ 핵심: onSnapshot(실시간) 버리고 getDocs(단발성), startAfter(진짜 커서) 도입 ★
-        import { getFirestore, collection, addDoc, query, orderBy, limit, startAfter, getDocs, deleteDoc, doc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
         const firebaseConfig = {
@@ -164,375 +408,678 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const storage = getStorage(app);
-        const collectionName = "cnation-ccm-list";
 
-        let globalSongs = [];
-        let lastVisibleDoc = null; // 서버에서 다음 5개를 가져오기 위한 '책갈피' 역할
-        let isFetching = false;
-        const FETCH_LIMIT = 5; // 무조건 서버에서 5개만 가져옴
-        const ADMIN_PASSWORD = "1257";
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
+        const WEEKLY_COL = "cnation-msyh-sgd-weekly";
+        const FIXED_COL = "cnation-msyh-sgd-fixed";
 
-        // 아코디언
-        document.getElementById('toggleFormBtn').addEventListener('click', () => {
-            const formContent = document.getElementById('formContent');
-            const toggleIcon = document.getElementById('toggleIcon');
-            formContent.classList.toggle('hidden');
-            toggleIcon.textContent = formContent.classList.contains('hidden') ? '➕' : '➖';
-        });
+        // ======== 설정 화면 상태 ========
+        let currentSheetMusicUrl = '';       // 기존 PDF URL
+        let currentSheetMusicImages = [];    // 기존 이미지 URL 배열
+        let pendingDeletePdf = false;        // PDF 삭제 예약 여부
+        let pendingDeleteImages = false;     // 기존 이미지 전체 삭제 예약 여부
+        let imageSlots = [];                 // 새로 추가할 이미지 슬롯 [{file, previewUrl}]
+        const MAX_IMAGE_SLOTS = 20;
 
-        // HTML 그리기 전용 함수
-        function appendSongToDOM(id, data) {
-            const listDiv = document.getElementById('songList');
-            const tagColor = data.type === '창작곡' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700';
-            const dateStr = data.creationDate ? data.creationDate.split('-').join('. ') + '.' : '';
-            const displayImage = data.thumbnailUrl ? data.thumbnailUrl : data.imageUrl;
+        // ===== 파트 선택 =====
+        window.handlePartSelection = (checkbox) => {
+            const checkboxes = document.querySelectorAll('.part-checkbox');
+            if (checkbox.value === '전체' && checkbox.checked) {
+                checkboxes.forEach(cb => { if (cb.value !== '전체') cb.checked = false; });
+            } else if (checkbox.checked) {
+                document.querySelector('.part-checkbox[value="전체"]').checked = false;
+            }
+            const anyChecked = Array.from(checkboxes).some(cb => cb.checked);
+            if (!anyChecked) document.querySelector('.part-checkbox[value="전체"]').checked = true;
+        };
 
-            const itemHtml = `
-                <div onclick="openModal('${id}')" class="flex items-center p-3 bg-white border border-gray-100 rounded-xl hover:shadow-md cursor-pointer transition mt-3">
-                    <img src="${displayImage}" loading="lazy" class="w-16 h-16 rounded-lg object-cover shadow-sm mr-4 shrink-0" alt="cover">
-                    <div class="flex-1">
-                        <div class="flex items-center justify-between mb-0.5">
-                            <h3 class="font-bold text-gray-800 text-base line-clamp-1">${data.title}</h3>
-                            <span class="text-[10px] text-gray-400 font-medium">${dateStr}</span>
-                        </div>
-                        <div class="flex items-center">
-                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded ${tagColor} mr-2">${data.type}</span>
-                            <span class="text-xs text-gray-500">${data.creator}</span>
-                        </div>
-                    </div>
-                    <div class="w-8 flex justify-end text-indigo-400">
-                        <i class="fas fa-chevron-right"></i>
-                    </div>
-                </div>
-            `;
-            listDiv.insertAdjacentHTML('beforeend', itemHtml);
+        function getSelectedParts() {
+            return Array.from(document.querySelectorAll('.part-checkbox:checked')).map(cb => cb.value);
         }
 
-        // ★ 첫 화면 5개 가져오기 (단발성 요청) ★
-        async function loadSongsInitial(sortField, sortDirection) {
-            const listDiv = document.getElementById('songList');
-            const moreBtnContainer = document.getElementById('moreBtnContainer');
+        // ===== 화면 전환 =====
+        window.goHome = () => {
+            document.getElementById('practiceView').classList.add('hidden');
+            document.getElementById('setupView').classList.add('hidden');
+            document.getElementById('pastDateSelector').classList.add('hidden');
+            document.getElementById('practiceContainer').innerHTML = '';
+            document.getElementById('homeView').classList.remove('hidden');
+        };
 
-            listDiv.innerHTML = '<p class="text-center text-gray-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i>서버에서 데이터를 부르는 중...</p>';
-            moreBtnContainer.innerHTML = '';
-            globalSongs = [];
-            lastVisibleDoc = null;
+        // ===== 설정 화면 =====
+        window.openSetup = async () => {
+            document.getElementById('homeView').classList.add('hidden');
+            document.getElementById('setupView').classList.remove('hidden');
+            document.getElementById('setupDate').value = getNextSunday();
+            resetSheetMusicUI();
+            loadSetupForDate();
 
             try {
-                // DB 전체가 아니라, 정렬 기준에 맞춰서 딱 5개만 달라고 서버에 요청!
-                const q = query(collection(db, collectionName), orderBy(sortField, sortDirection), limit(FETCH_LIMIT));
-                const snapshot = await getDocs(q);
+                const docSnap = await getDoc(doc(db, FIXED_COL, "current"));
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const i = data.introit || {}, p = data.prayer || {}, b = data.benediction || {};
+                    document.getElementById('setupIntroitFull').value = i.full || '';
+                    document.getElementById('setupIntroitSop').value = i.soprano || '';
+                    document.getElementById('setupIntroitAlto').value = i.alto || '';
+                    document.getElementById('setupIntroitTenor').value = i.tenor || '';
+                    document.getElementById('setupIntroitBass').value = i.bass || '';
+                    document.getElementById('setupPrayerFull').value = p.full || '';
+                    document.getElementById('setupPrayerSop').value = p.soprano || '';
+                    document.getElementById('setupPrayerAlto').value = p.alto || '';
+                    document.getElementById('setupPrayerTenor').value = p.tenor || '';
+                    document.getElementById('setupPrayerBass').value = p.bass || '';
+                    document.getElementById('setupBeneFull').value = b.full || '';
+                    document.getElementById('setupBeneSop').value = b.soprano || '';
+                    document.getElementById('setupBeneAlto').value = b.alto || '';
+                    document.getElementById('setupBeneTenor').value = b.tenor || '';
+                    document.getElementById('setupBeneBass').value = b.bass || '';
+                }
+            } catch (e) { console.error(e); }
+        };
 
-                listDiv.innerHTML = ''; // 로딩 문구 삭제
+        function resetSheetMusicUI() {
+            currentSheetMusicUrl = '';
+            currentSheetMusicImages = [];
+            pendingDeletePdf = false;
+            pendingDeleteImages = false;
+            imageSlots = [];
+            document.getElementById('setupSheetMusic').value = '';
+            document.getElementById('currentSheetMusicStatus').innerHTML = '현재 등록된 악보가 없습니다.';
+            document.getElementById('deletePdfBtn').classList.add('hidden');
+            document.getElementById('existingImagesArea').classList.add('hidden');
+            document.getElementById('existingImagesList').innerHTML = '';
+            renderImageSlots();
+        }
 
-                if (snapshot.empty) {
-                    listDiv.innerHTML = '<p class="text-center text-gray-400 py-4">등록된 곡이 없습니다.</p>';
+        // PDF 선택 시 이미지 슬롯 초기화 (둘 다 동시 첨부 불가)
+        window.onPdfSelected = () => {
+            const f = document.getElementById('setupSheetMusic').files[0];
+            if (f) {
+                // PDF 선택 시 이미지 슬롯 경고
+                if (imageSlots.some(s => s.file) || (currentSheetMusicImages.length > 0 && !pendingDeleteImages)) {
+                    if (!confirm('PDF를 첨부하면 이미지 악보는 무시됩니다. 계속하시겠습니까?')) {
+                        document.getElementById('setupSheetMusic').value = '';
+                    }
+                }
+            }
+        };
+
+        // ===== 이미지 슬롯 관리 =====
+        window.addImageSlot = () => {
+            if (imageSlots.length >= MAX_IMAGE_SLOTS) {
+                alert(`이미지는 최대 ${MAX_IMAGE_SLOTS}장까지 추가할 수 있습니다.`);
+                return;
+            }
+            imageSlots.push({ file: null, previewUrl: null });
+            renderImageSlots();
+        };
+
+        window.clearAllImageSlots = () => {
+            imageSlots = [];
+            renderImageSlots();
+        };
+
+        function renderImageSlots() {
+            const area = document.getElementById('imageSlotArea');
+            area.innerHTML = '';
+            imageSlots.forEach((slot, idx) => {
+                const div = document.createElement('div');
+                div.className = 'img-slot flex flex-col items-center gap-1';
+                if (slot.previewUrl) {
+                    div.innerHTML = `
+                        <div style="position:relative;display:inline-block;">
+                            <img src="${slot.previewUrl}" class="preview-thumb" alt="악보${idx+1}">
+                            <span class="remove-img-btn" onclick="removeImageSlot(${idx})"><i class="fas fa-times"></i></span>
+                        </div>
+                        <span style="font-size:10px;color:#6366f1;font-weight:700;">${idx+1}번</span>
+                    `;
+                } else {
+                    div.innerHTML = `
+                        <div class="img-slot-empty" onclick="document.getElementById('imgInput_${idx}').click()">
+                            <i class="fas fa-plus"></i>
+                        </div>
+                        <input type="file" id="imgInput_${idx}" accept="image/jpeg,image/png" class="hidden"
+                            onchange="onImageSlotFileSelected(${idx}, this)">
+                        <span style="font-size:10px;color:#a5b4fc;font-weight:700;">${idx+1}번</span>
+                    `;
+                }
+                area.appendChild(div);
+            });
+            document.getElementById('imageSlotCount').textContent =
+                `추가된 슬롯: ${imageSlots.length}개 / 선택된 파일: ${imageSlots.filter(s=>s.file).length}개`;
+        }
+
+        window.onImageSlotFileSelected = (idx, input) => {
+            const file = input.files[0];
+            if (!file) return;
+            // PDF 선택 취소 유도
+            const pdfInput = document.getElementById('setupSheetMusic');
+            if (pdfInput.files.length > 0) {
+                if (!confirm('이미지를 첨부하면 PDF 선택이 무시됩니다. 계속하시겠습니까?')) {
+                    input.value = '';
                     return;
                 }
+                pdfInput.value = '';
+            }
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imageSlots[idx] = { file, previewUrl: e.target.result };
+                renderImageSlots();
+            };
+            reader.readAsDataURL(file);
+        };
 
-                lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1]; // 5번째 문서에 책갈피 꽂기
+        window.removeImageSlot = (idx) => {
+            imageSlots.splice(idx, 1);
+            renderImageSlots();
+        };
 
-                snapshot.forEach((docSnap) => {
+        // ===== 기존 악보 삭제 =====
+        window.deleteCurrentPdf = () => {
+            if (!confirm('등록된 PDF 악보를 삭제하시겠습니까?\n저장 버튼을 눌러야 실제로 적용됩니다.')) return;
+            pendingDeletePdf = true;
+            document.getElementById('currentSheetMusicStatus').innerHTML =
+                '<span class="text-red-500 font-bold"><i class="fas fa-trash mr-1"></i>저장 시 PDF 악보가 삭제됩니다.</span>';
+            document.getElementById('deletePdfBtn').classList.add('hidden');
+        };
+
+        window.deleteAllExistingImages = () => {
+            if (!confirm('등록된 이미지 악보를 전체 삭제하시겠습니까?\n저장 버튼을 눌러야 실제로 적용됩니다.')) return;
+            pendingDeleteImages = true;
+            document.getElementById('existingImagesArea').innerHTML = '';
+            const area = document.getElementById('existingImagesArea');
+            area.classList.remove('hidden');
+            area.innerHTML = '<p class="text-red-500 text-xs font-bold"><i class="fas fa-trash mr-1"></i>저장 시 이미지 악보가 전체 삭제됩니다.</p>';
+        };
+
+        // 기존 이미지 개별 삭제 예약
+        window.markExistingImageDeleted = (idx) => {
+            if (!confirm(`${idx+1}번 이미지를 삭제 예약하시겠습니까?\n저장 버튼을 눌러야 실제로 적용됩니다.`)) return;
+            currentSheetMusicImages[idx] = null;
+            renderExistingImages();
+        };
+
+        function renderExistingImages() {
+            const list = document.getElementById('existingImagesList');
+            list.innerHTML = '';
+            const remaining = currentSheetMusicImages.filter(u => u !== null);
+            currentSheetMusicImages.forEach((url, idx) => {
+                if (!url) return;
+                const div = document.createElement('div');
+                div.className = 'existing-img-thumb';
+                div.innerHTML = `
+                    <img src="${url}" alt="악보${idx+1}" onerror="this.src=''">
+                    <span class="del-btn" onclick="markExistingImageDeleted(${idx})"><i class="fas fa-times"></i></span>
+                    <div style="font-size:10px;color:#6366f1;font-weight:700;text-align:center;">${idx+1}번</div>
+                `;
+                list.appendChild(div);
+            });
+            document.getElementById('existingImagesArea').classList.toggle('hidden', remaining.length === 0);
+        }
+
+        // ===== Firestore 날짜별 로드 =====
+        window.loadSetupForDate = async () => {
+            const date = document.getElementById('setupDate').value;
+            resetSheetMusicUI();
+            if (!date) return;
+            try {
+                const docSnap = await getDoc(doc(db, WEEKLY_COL, date));
+                if (docSnap.exists()) {
                     const data = docSnap.data();
-                    globalSongs.push({ id: docSnap.id, ...data });
-                    appendSongToDOM(docSnap.id, data);
-                });
+                    document.getElementById('setupTitle').value = data.title || '';
+                    document.getElementById('setupFull').value = data.full || '';
+                    document.getElementById('setupSop').value = data.soprano || '';
+                    document.getElementById('setupAlto').value = data.alto || '';
+                    document.getElementById('setupTenor').value = data.tenor || '';
+                    document.getElementById('setupBass').value = data.bass || '';
 
-                // 5개를 꽉 채워서 가져왔다면, 다음 곡이 더 있을 확률이 높으므로 버튼 생성
-                if (snapshot.docs.length === FETCH_LIMIT) {
-                    renderMoreButton(sortField, sortDirection);
-                }
-            } catch (error) {
-                console.error("불러오기 에러:", error);
-                listDiv.innerHTML = '<p class="text-center text-red-400 py-4">네트워크 지연 발생. 새로고침 해주세요.</p>';
-            }
-        }
-
-        function renderMoreButton(sortField, sortDirection) {
-            const moreBtnContainer = document.getElementById('moreBtnContainer');
-            moreBtnContainer.innerHTML = `
-                <button id="loadMoreBtn" class="w-full bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-600 font-bold py-3 rounded-xl transition shadow-sm text-sm flex items-center justify-center gap-2">
-                    <span>다음 5곡 더 보기 🔽</span>
-                </button>
-            `;
-            document.getElementById('loadMoreBtn').addEventListener('click', () => {
-                loadMoreSongs(sortField, sortDirection);
-            });
-        }
-
-        // ★ 책갈피 이후부터 5개 가져오기 ★
-        async function loadMoreSongs(sortField, sortDirection) {
-            if (isFetching || !lastVisibleDoc) return;
-            isFetching = true;
-
-            const loadMoreBtn = document.getElementById('loadMoreBtn');
-            loadMoreBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 불러오는 중...';
-
-            try {
-                // 아까 꽂아둔 책갈피(startAfter) 다음부터 5개만 가져오기
-                const q = query(collection(db, collectionName), orderBy(sortField, sortDirection), startAfter(lastVisibleDoc), limit(FETCH_LIMIT));
-                const snapshot = await getDocs(q);
-
-                if (!snapshot.empty) {
-                    lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1]; // 책갈피 업데이트
-                    snapshot.forEach((docSnap) => {
-                        const data = docSnap.data();
-                        globalSongs.push({ id: docSnap.id, ...data });
-                        appendSongToDOM(docSnap.id, data);
-                    });
-                }
-
-                if (snapshot.docs.length === FETCH_LIMIT) {
-                    renderMoreButton(sortField, sortDirection);
+                    const statusEl = document.getElementById('currentSheetMusicStatus');
+                    // PDF 상태
+                    if (data.sheetMusicUrl) {
+                        currentSheetMusicUrl = data.sheetMusicUrl;
+                        statusEl.innerHTML = `<span class="text-red-600 font-bold"><i class="fas fa-file-pdf mr-1"></i>PDF 악보가 등록되어 있습니다.</span> (새 파일 첨부 시 덮어씀)`;
+                        document.getElementById('deletePdfBtn').classList.remove('hidden');
+                    } else {
+                        statusEl.innerHTML = '등록된 PDF 악보가 없습니다.';
+                    }
+                    // 이미지 상태
+                    if (data.sheetMusicImages && data.sheetMusicImages.length > 0) {
+                        currentSheetMusicImages = [...data.sheetMusicImages];
+                        renderExistingImages();
+                    }
                 } else {
-                    document.getElementById('moreBtnContainer').innerHTML = '<p class="text-center text-xs text-gray-400 mt-4">모든 곡을 불러왔습니다. 🎉</p>';
+                    document.getElementById('setupTitle').value = '';
+                    document.getElementById('setupFull').value = '';
+                    document.getElementById('setupSop').value = '';
+                    document.getElementById('setupAlto').value = '';
+                    document.getElementById('setupTenor').value = '';
+                    document.getElementById('setupBass').value = '';
                 }
-            } catch (error) {
-                console.error("추가 로딩 에러:", error);
-                renderMoreButton(sortField, sortDirection);
+            } catch (e) { console.error(e); }
+        };
+
+        // ===== 저장 =====
+        window.saveWeeklyLinks = async () => {
+            const date = document.getElementById('setupDate').value;
+            if (!date) { alert("날짜를 선택해주세요."); return; }
+
+            const btn = document.getElementById('saveWeeklyBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 업로드 및 저장 중...';
+            btn.disabled = true;
+
+            try {
+                const pdfInput = document.getElementById('setupSheetMusic');
+                const hasPdfFile = pdfInput.files.length > 0;
+                const hasNewImages = imageSlots.some(s => s.file);
+
+                // PDF와 이미지 동시 첨부 방지 (PDF 우선)
+                if (hasPdfFile && hasNewImages) {
+                    if (!confirm('PDF와 이미지가 동시에 선택되었습니다.\nPDF를 우선 저장합니다. 이미지는 무시됩니다. 계속하시겠습니까?')) {
+                        btn.innerHTML = '주일 찬양 및 악보 저장';
+                        btn.disabled = false;
+                        return;
+                    }
+                }
+
+                let finalPdfUrl = pendingDeletePdf ? '' : currentSheetMusicUrl;
+                let finalImages = pendingDeleteImages ? [] : currentSheetMusicImages.filter(u => u !== null);
+
+                // PDF 업로드
+                if (hasPdfFile) {
+                    const file = pdfInput.files[0];
+                    const storageRef = ref(storage, `sheet_music/${date}_${file.name}`);
+                    await uploadBytes(storageRef, file);
+                    finalPdfUrl = await getDownloadURL(storageRef);
+                    finalImages = []; // PDF 업로드 시 이미지 초기화
+                }
+                // 이미지 업로드 (PDF 없을 때만)
+                else if (hasNewImages) {
+                    finalPdfUrl = ''; // 이미지 업로드 시 PDF 초기화
+                    const uploadedUrls = [];
+                    for (let i = 0; i < imageSlots.length; i++) {
+                        const slot = imageSlots[i];
+                        if (!slot.file) continue;
+                        const ext = slot.file.name.split('.').pop();
+                        const storageRef = ref(storage, `sheet_music_images/${date}_img${String(i+1).padStart(2,'0')}.${ext}`);
+                        await uploadBytes(storageRef, slot.file);
+                        const url = await getDownloadURL(storageRef);
+                        uploadedUrls.push(url);
+                    }
+                    // 기존 잔여 이미지 + 새 이미지 합치기
+                    finalImages = [...finalImages, ...uploadedUrls];
+                }
+
+                await setDoc(doc(db, WEEKLY_COL, date), {
+                    title: document.getElementById('setupTitle').value,
+                    full: document.getElementById('setupFull').value,
+                    soprano: document.getElementById('setupSop').value,
+                    alto: document.getElementById('setupAlto').value,
+                    tenor: document.getElementById('setupTenor').value,
+                    bass: document.getElementById('setupBass').value,
+                    sheetMusicUrl: finalPdfUrl,
+                    sheetMusicImages: finalImages
+                });
+
+                alert(`${date} 찬양 링크 및 악보가 성공적으로 저장되었습니다.`);
+                loadSetupForDate();
+            } catch (e) {
+                console.error(e);
+                alert("저장 실패. 네트워크 또는 파일 크기를 확인해주세요.");
+            } finally {
+                btn.innerHTML = '주일 찬양 및 악보 저장';
+                btn.disabled = false;
             }
-            isFetching = false;
+        };
+
+        window.saveFixedLinks = async () => {
+            const btn = document.getElementById('saveFixedBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 저장중...';
+            btn.disabled = true;
+            try {
+                await setDoc(doc(db, FIXED_COL, "current"), {
+                    introit: {
+                        full: document.getElementById('setupIntroitFull').value,
+                        soprano: document.getElementById('setupIntroitSop').value,
+                        alto: document.getElementById('setupIntroitAlto').value,
+                        tenor: document.getElementById('setupIntroitTenor').value,
+                        bass: document.getElementById('setupIntroitBass').value
+                    },
+                    prayer: {
+                        full: document.getElementById('setupPrayerFull').value,
+                        soprano: document.getElementById('setupPrayerSop').value,
+                        alto: document.getElementById('setupPrayerAlto').value,
+                        tenor: document.getElementById('setupPrayerTenor').value,
+                        bass: document.getElementById('setupPrayerBass').value
+                    },
+                    benediction: {
+                        full: document.getElementById('setupBeneFull').value,
+                        soprano: document.getElementById('setupBeneSop').value,
+                        alto: document.getElementById('setupBeneAlto').value,
+                        tenor: document.getElementById('setupBeneTenor').value,
+                        bass: document.getElementById('setupBeneBass').value
+                    }
+                });
+                alert(`고정곡 15개 파트 링크가 성공적으로 저장되었습니다.`);
+            } catch (e) { alert("저장 실패. 네트워크를 확인해주세요."); }
+            finally { btn.innerHTML = '고정곡 저장'; btn.disabled = false; }
+        };
+
+        // ===== 유틸 =====
+        function getYoutubeId(url) {
+            if (!url) return null;
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[2].length === 11) ? match[2] : null;
         }
 
-        // 정렬 변경 시 리스트 다시 불러오기
-        document.getElementById('sortSelect').addEventListener('change', (e) => {
-            const selectedValue = e.target.value;
-            const [field, direction] = selectedValue.split('_');
-            loadSongsInitial(field, direction);
-        });
+        function getNextSunday(baseDate = new Date()) {
+            const d = new Date(baseDate);
+            const day = d.getDay();
+            const diff = day === 0 ? 0 : 7 - day;
+            d.setDate(d.getDate() + diff);
+            const offset = d.getTimezoneOffset() * 60000;
+            return (new Date(d - offset)).toISOString().split('T')[0];
+        }
 
-        // 앱 켤 때 최초 로딩 실행
-        loadSongsInitial('creationDate', 'desc');
+        // ===== 반복재생 토글 =====
+        window.toggleRepeat = (videoId, partKey, isChecked) => {
+            const iframe = document.getElementById(`iframe_${partKey}`);
+            if (!iframe) return;
+            iframe.src = isChecked
+                ? `https://www.youtube.com/embed/${videoId}?loop=1&playlist=${videoId}&autoplay=1`
+                : `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+        };
 
-        /* --- 아래는 기존 이미지 썸네일 생성 및 업로드, 수정, 삭제 로직 (동일) --- */
+        // ===== 렌더링 함수 =====
+        function getPartBadgeClass(subtitle) {
+            if (subtitle === '소프라노') return 'badge-soprano';
+            if (subtitle === '알토') return 'badge-alto';
+            if (subtitle === '테너') return 'badge-tenor';
+            if (subtitle === '베이스') return 'badge-bass';
+            return 'badge-full';
+        }
 
-        function generateThumbnail(file) {
-            return new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const img = new Image();
-                    img.onload = () => {
-                        const canvas = document.createElement('canvas');
-                        let width = img.width;
-                        let height = img.height;
-                        const max_size = 300;
-                        if (width > height) {
-                            if (width > max_size) { height *= max_size / width; width = max_size; }
+        function renderVideo(title, subtitle, videoId, partKey) {
+            if (!videoId) return '';
+            const badgeClass = getPartBadgeClass(subtitle);
+            return `
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full hover:shadow-md transition">
+                    <div class="p-3 md:p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                        <div>
+                            <span class="text-xs font-bold px-2 py-1 rounded ${badgeClass}">${subtitle}</span>
+                            <h3 class="font-bold text-gray-800 mt-1.5 text-sm md:text-base line-clamp-1">${title}</h3>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                            <span class="text-[10px] font-bold text-gray-500">반복재생</span>
+                            <div class="relative inline-block w-9 align-middle select-none transition duration-200 ease-in">
+                                <input type="checkbox" id="toggle_${partKey}" onchange="toggleRepeat('${videoId}', '${partKey}', this.checked)"
+                                    class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer"/>
+                                <label for="toggle_${partKey}" class="toggle-label block overflow-hidden h-5 rounded-full bg-gray-300 cursor-pointer"></label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="aspect-video w-full bg-black relative flex-1">
+                        <iframe id="iframe_${partKey}" class="absolute inset-0 w-full h-full"
+                            src="https://www.youtube.com/embed/${videoId}"
+                            frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowfullscreen></iframe>
+                    </div>
+                </div>`;
+        }
+
+        // PDF 악보 렌더링
+        function renderPdfContainer(title, date, url, index) {
+            if (!url) return '';
+            const containerId = `pdf-container-${index}`;
+            return `
+                <div class="bg-white rounded-2xl shadow-md border border-indigo-200 overflow-hidden mb-8 mt-4 max-w-4xl mx-auto">
+                    <div class="p-4 border-b border-indigo-100 bg-indigo-50 flex justify-between items-center sticky top-0 z-10 shadow-sm">
+                        <h3 class="font-bold text-indigo-800 text-sm md:text-base truncate pr-2">
+                            <i class="fas fa-file-pdf text-red-500 mr-2"></i>[${date}] ${title} 악보
+                        </h3>
+                        <button onclick="openPdfModal('${containerId}', '[${date}] ${title}')"
+                            class="text-xs font-bold text-indigo-700 bg-white px-4 py-2 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition shadow-sm whitespace-nowrap">
+                            <i class="fas fa-expand mr-1"></i>크게보기
+                        </button>
+                    </div>
+                    <div id="${containerId}" data-pdf-url="${url}" class="pdf-viewer w-full bg-gray-200 p-2 md:p-6 flex flex-col gap-2 min-h-[200px]"></div>
+                </div>`;
+        }
+
+        // 이미지 악보 렌더링
+        function renderImagesContainer(title, date, images, index) {
+            if (!images || images.length === 0) return '';
+            const imgsHtml = images.map((url, i) =>
+                `<img src="${url}" alt="${title} 악보 ${i+1}페이지"
+                    class="w-full h-auto bg-white shadow-md border border-gray-300 rounded mb-4 max-w-full object-contain"
+                    onerror="this.style.display='none'">`
+            ).join('');
+            return `
+                <div class="bg-white rounded-2xl shadow-md border border-indigo-200 overflow-hidden mb-8 mt-4 max-w-4xl mx-auto">
+                    <div class="p-4 border-b border-indigo-100 bg-indigo-50 sticky top-0 z-10 shadow-sm">
+                        <h3 class="font-bold text-indigo-800 text-sm md:text-base truncate">
+                            <i class="fas fa-images text-indigo-500 mr-2"></i>[${date}] ${title} 악보 (${images.length}장)
+                        </h3>
+                    </div>
+                    <div class="w-full bg-gray-200 p-2 md:p-6 flex flex-col gap-2">${imgsHtml}</div>
+                </div>`;
+        }
+
+        async function loadPdfToCanvas(url, containerId) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '<p class="text-indigo-500 py-10 text-center text-sm font-bold"><i class="fas fa-spinner fa-spin mr-2"></i>악보를 페이지별로 그리는 중...</p>';
+            try {
+                const pdf = await pdfjsLib.getDocument(url).promise;
+                container.innerHTML = '';
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const viewport = page.getViewport({ scale: 1.5 });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    canvas.className = 'w-full h-auto bg-white shadow-md border border-gray-300 rounded mb-4 max-w-full';
+                    await page.render({ canvasContext: context, viewport }).promise;
+                    container.appendChild(canvas);
+                }
+            } catch (error) {
+                container.innerHTML = '<p class="text-red-500 py-10 text-center text-xs">악보를 불러올 수 없습니다.<br>(Firebase Storage CORS 설정 필요)</p>';
+            }
+        }
+
+        window.openPdfModal = (containerId, title) => {
+            const srcContainer = document.getElementById(containerId);
+            const modalContent = document.getElementById('pdfModalContent');
+            document.getElementById('pdfModalTitle').innerText = title;
+            modalContent.innerHTML = '';
+            while (srcContainer.firstChild) modalContent.appendChild(srcContainer.firstChild);
+            modalContent.dataset.srcContainerId = containerId;
+            document.getElementById('pdfModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        };
+
+        window.closePdfModal = () => {
+            const modalContent = document.getElementById('pdfModalContent');
+            const srcContainer = document.getElementById(modalContent.dataset.srcContainerId);
+            if (srcContainer) {
+                while (modalContent.firstChild) srcContainer.appendChild(modalContent.firstChild);
+            }
+            document.getElementById('pdfModal').classList.add('hidden');
+            document.body.style.overflow = '';
+        };
+
+        // ===== 연습 화면 =====
+        window.openPractice = async (type) => {
+            document.getElementById('homeView').classList.add('hidden');
+            document.getElementById('practiceView').classList.remove('hidden');
+            const container = document.getElementById('practiceContainer');
+            container.innerHTML = '<div class="flex items-center justify-center py-20"><p class="text-gray-400 font-bold"><i class="fas fa-spinner fa-spin mr-2"></i>데이터를 불러오는 중...</p></div>';
+
+            const parts = getSelectedParts();
+            const isAll = parts.includes('전체');
+
+            try {
+                let videosHtml = '<div class="space-y-10">';
+                let sheetsHtml = '<div class="mt-12 pt-8 border-t-2 border-dashed border-gray-300">';
+                let sheetEntries = []; // {type:'pdf'|'images', url, images, title, date, idx}
+
+                if (type === '고정') {
+                    document.getElementById('practiceTitle').innerText = '입례/기도/축도송 연습';
+                    const docSnap = await getDoc(doc(db, FIXED_COL, "current"));
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        const i = data.introit || {}, p = data.prayer || {}, b = data.benediction || {};
+                        videosHtml += buildFixedSection('입례송', 'fa-church', i, isAll, parts, 'i');
+                        videosHtml += buildFixedSection('기도송', 'fa-pray', p, isAll, parts, 'p');
+                        videosHtml += buildFixedSection('축도송', 'fa-hands-blessing', b, isAll, parts, 'b');
+                    }
+                    videosHtml += '</div>';
+                    container.innerHTML = videosHtml;
+                } else {
+                    const thisSunday = getNextSunday();
+                    const d = new Date(thisSunday);
+                    d.setDate(d.getDate() + 7);
+                    const nextSunday = d.toISOString().split('T')[0];
+                    const datesToFetch = [];
+                    if (type === '이번주' || type === '이번주_다음주') datesToFetch.push(thisSunday);
+                    if (type === '다음주' || type === '이번주_다음주') datesToFetch.push(nextSunday);
+
+                    document.getElementById('practiceTitle').innerText = type.replace('_', ', ') + ' 곡 연습';
+                    let hasVideos = false;
+
+                    for (const date of datesToFetch) {
+                        const docSnap = await getDoc(doc(db, WEEKLY_COL, date));
+                        if (docSnap.exists()) {
+                            const data = docSnap.data();
+                            const title = data.title || `${date} 찬양`;
+                            videosHtml += `<div><h2 class="font-extrabold text-xl md:text-2xl text-indigo-800 mb-4 flex items-center gap-2"><i class="fas fa-calendar-check"></i> ${date}</h2>`;
+                            videosHtml += `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">`;
+                            if (isAll || parts.includes('합창')) { videosHtml += renderVideo(title, '합창', getYoutubeId(data.full), `full_${date}`); hasVideos = true; }
+                            if (isAll || parts.includes('소프라노')) { videosHtml += renderVideo(title, '소프라노', getYoutubeId(data.soprano), `sop_${date}`); hasVideos = true; }
+                            if (isAll || parts.includes('알토')) { videosHtml += renderVideo(title, '알토', getYoutubeId(data.alto), `alto_${date}`); hasVideos = true; }
+                            if (isAll || parts.includes('테너')) { videosHtml += renderVideo(title, '테너', getYoutubeId(data.tenor), `tenor_${date}`); hasVideos = true; }
+                            if (isAll || parts.includes('베이스')) { videosHtml += renderVideo(title, '베이스', getYoutubeId(data.bass), `bass_${date}`); hasVideos = true; }
+                            videosHtml += `</div></div>`;
+
+                            const idx = sheetEntries.length;
+                            if (data.sheetMusicUrl) {
+                                sheetEntries.push({ type: 'pdf', url: data.sheetMusicUrl, title, date, idx });
+                                sheetsHtml += renderPdfContainer(title, date, data.sheetMusicUrl, idx);
+                            } else if (data.sheetMusicImages && data.sheetMusicImages.length > 0) {
+                                sheetEntries.push({ type: 'images', images: data.sheetMusicImages, title, date, idx });
+                                sheetsHtml += renderImagesContainer(title, date, data.sheetMusicImages, idx);
+                            }
                         } else {
-                            if (height > max_size) { width *= max_size / height; height = max_size; }
+                            videosHtml += `<div class="bg-gray-100 p-8 rounded-2xl text-center text-gray-500 mb-6 border border-gray-200">
+                                <i class="fas fa-exclamation-circle mb-3 text-3xl opacity-50"></i><br>
+                                <span class="font-bold text-lg">${date}</span><br>곡이 아직 등록되지 않았습니다.</div>`;
                         }
-                        canvas.width = width;
-                        canvas.height = height;
-                        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.6);
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
-            });
+                    }
+                    videosHtml += '</div>';
+                    sheetsHtml += '</div>';
+
+                    container.innerHTML = videosHtml + (sheetEntries.length > 0 ? sheetsHtml : '');
+
+                    // PDF만 canvas 렌더링
+                    setTimeout(() => {
+                        sheetEntries.filter(e => e.type === 'pdf').forEach(e => {
+                            loadPdfToCanvas(e.url, `pdf-container-${e.idx}`);
+                        });
+                    }, 100);
+                }
+            } catch (e) {
+                container.innerHTML = '<div class="flex items-center justify-center py-20"><p class="text-red-400 font-bold">데이터를 불러오지 못했습니다.</p></div>';
+            }
+        };
+
+        function buildFixedSection(name, icon, data, isAll, parts, prefix) {
+            let html = `<div><h2 class="font-extrabold text-2xl text-indigo-800 mb-4 flex items-center gap-2"><i class="fas ${icon}"></i> ${name}</h2>`;
+            html += `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">`;
+            if (isAll || parts.includes('합창')) html += renderVideo(name, '합창', getYoutubeId(data.full), `${prefix}_full`);
+            if (isAll || parts.includes('소프라노')) html += renderVideo(name, '소프라노', getYoutubeId(data.soprano), `${prefix}_sop`);
+            if (isAll || parts.includes('알토')) html += renderVideo(name, '알토', getYoutubeId(data.alto), `${prefix}_alto`);
+            if (isAll || parts.includes('테너')) html += renderVideo(name, '테너', getYoutubeId(data.tenor), `${prefix}_tenor`);
+            if (isAll || parts.includes('베이스')) html += renderVideo(name, '베이스', getYoutubeId(data.bass), `${prefix}_bass`);
+            html += `</div></div>`;
+            return html;
         }
 
-        document.getElementById('addBtn').addEventListener('click', async () => {
-            const title = document.getElementById('titleInput').value;
-            const type = document.getElementById('typeInput').value;
-            const creator = document.getElementById('creatorInput').value;
-            const creationDate = document.getElementById('dateInput').value;
-            const imageFile = document.getElementById('imageInput').files[0];
-            const mp3File = document.getElementById('mp3Input').files[0];
+        window.openPastPractice = async () => {
+            document.getElementById('homeView').classList.add('hidden');
+            document.getElementById('practiceView').classList.remove('hidden');
+            document.getElementById('pastDateSelector').classList.remove('hidden');
+            document.getElementById('practiceTitle').innerText = '기존 곡 연습';
+            const container = document.getElementById('practiceContainer');
+            container.innerHTML = '<div class="flex items-center justify-center py-20"><p class="text-gray-400 font-bold">위에서 날짜를 선택해주세요.</p></div>';
+            const dropdown = document.getElementById('pastDateDropdown');
+            dropdown.innerHTML = '<option value="">날짜 목록 불러오는 중...</option>';
+            try {
+                const snap = await getDocs(query(collection(db, WEEKLY_COL)));
+                let dates = [];
+                snap.forEach(d => dates.push({ date: d.id, title: d.data().title || '' }));
+                dates.sort((a, b) => b.date.localeCompare(a.date));
+                dropdown.innerHTML = '<option value="">날짜(일요일)를 선택하세요</option>';
+                dates.forEach(item => {
+                    dropdown.innerHTML += `<option value="${item.date}">${item.date} ${item.title ? '- ' + item.title : ''}</option>`;
+                });
+            } catch (e) { dropdown.innerHTML = '<option value="">불러오기 실패</option>'; }
+        };
 
-            if (!title || !imageFile || !creationDate) {
-                alert('곡 제목, 타이틀 이미지, 그리고 제작일은 필수입니다!');
-                return;
-            }
+        window.loadPastPractice = async () => {
+            const date = document.getElementById('pastDateDropdown').value;
+            const container = document.getElementById('practiceContainer');
+            if (!date) { container.innerHTML = ''; return; }
+            container.innerHTML = '<div class="flex items-center justify-center py-20"><p class="text-gray-400 font-bold"><i class="fas fa-spinner fa-spin mr-2"></i>불러오는 중...</p></div>';
 
-            document.getElementById('addBtn').classList.add('hidden');
-            document.getElementById('uploadStatus').classList.remove('hidden');
+            const parts = getSelectedParts();
+            const isAll = parts.includes('전체');
 
             try {
-                const timeStr = Date.now();
-                const originalImageRef = ref(storage, `${collectionName}/images/${timeStr}_${imageFile.name}`);
-                await uploadBytes(originalImageRef, imageFile);
-                const imageUrl = await getDownloadURL(originalImageRef);
+                const docSnap = await getDoc(doc(db, WEEKLY_COL, date));
+                let videosHtml = '<div class="space-y-6">';
+                let sheetsHtml = '';
+                let hasData = false;
 
-                const thumbnailBlob = await generateThumbnail(imageFile);
-                const thumbnailRef = ref(storage, `${collectionName}/thumbnails/${timeStr}_${imageFile.name}.jpg`);
-                await uploadBytes(thumbnailRef, thumbnailBlob);
-                const thumbnailUrl = await getDownloadURL(thumbnailRef);
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    const title = data.title || `${date} 찬양`;
+                    videosHtml += `<div><h2 class="font-extrabold text-xl md:text-2xl text-indigo-800 mb-4 flex items-center gap-2"><i class="fas fa-calendar-check"></i> ${date}</h2>`;
+                    videosHtml += `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">`;
+                    if (isAll || parts.includes('합창')) { videosHtml += renderVideo(title, '합창', getYoutubeId(data.full), `full_${date}`); hasData = true; }
+                    if (isAll || parts.includes('소프라노')) { videosHtml += renderVideo(title, '소프라노', getYoutubeId(data.soprano), `sop_${date}`); hasData = true; }
+                    if (isAll || parts.includes('알토')) { videosHtml += renderVideo(title, '알토', getYoutubeId(data.alto), `alto_${date}`); hasData = true; }
+                    if (isAll || parts.includes('테너')) { videosHtml += renderVideo(title, '테너', getYoutubeId(data.tenor), `tenor_${date}`); hasData = true; }
+                    if (isAll || parts.includes('베이스')) { videosHtml += renderVideo(title, '베이스', getYoutubeId(data.bass), `bass_${date}`); hasData = true; }
+                    videosHtml += `</div></div>`;
 
-                let mp3Url = "";
-                if (mp3File) {
-                    const mp3Ref = ref(storage, `${collectionName}/audio/${timeStr}_${mp3File.name}`);
-                    await uploadBytes(mp3Ref, mp3File);
-                    mp3Url = await getDownloadURL(mp3Ref);
+                    if (data.sheetMusicUrl) {
+                        sheetsHtml = `<div class="mt-8 pt-4 border-t-2 border-dashed border-gray-300">${renderPdfContainer(title, date, data.sheetMusicUrl, 'past')}</div>`;
+                        hasData = true;
+                    } else if (data.sheetMusicImages && data.sheetMusicImages.length > 0) {
+                        sheetsHtml = `<div class="mt-8 pt-4 border-t-2 border-dashed border-gray-300">${renderImagesContainer(title, date, data.sheetMusicImages, 'past')}</div>`;
+                        hasData = true;
+                    }
                 }
+                videosHtml += '</div>';
 
-                await addDoc(collection(db, collectionName), {
-                    title: title, type: type, creator: creator, creationDate: creationDate,
-                    youtubeUrl: document.getElementById('youtubeInput').value,
-                    desc: document.getElementById('descInput').value,
-                    lyrics: document.getElementById('lyricsInput').value,
-                    prompt: document.getElementById('promptInput').value,
-                    imageUrl: imageUrl, thumbnailUrl: thumbnailUrl, mp3Url: mp3Url,
-                    createdAt: serverTimestamp()
-                });
-
-                alert("성공적으로 곡이 등록되었습니다! 🎉");
-                location.reload();
-            } catch (error) {
-                alert("업로드 중 에러가 발생했습니다.");
-                document.getElementById('addBtn').classList.remove('hidden');
-                document.getElementById('uploadStatus').classList.add('hidden');
-            }
-        });
-
-        window.openModal = (id) => {
-            const song = globalSongs.find(s => s.id === id);
-            if (!song) return;
-
-            let ytEmbed = "";
-            if (song.youtubeUrl) {
-                let videoId = song.youtubeUrl.split('v=')[1]?.split('&')[0] || song.youtubeUrl.split('youtu.be/')[1]?.split('?')[0];
-                if (videoId) ytEmbed = `<iframe class="w-full aspect-video mb-4 rounded-lg shadow-sm" src="https://www.youtube.com/embed/${videoId}" frameborder="0" allowfullscreen></iframe>`;
-            }
-
-            let audioPlayer = song.mp3Url ? `<audio controls class="w-full mt-2 mb-4 px-4"><source src="${song.mp3Url}" type="audio/mp3"></audio>` : '';
-            const dateStr = song.creationDate ? song.creationDate.split('-').join('. ') + '.' : '';
-
-            const contentHtml = `
-                <div><img src="${song.imageUrl}" class="w-full aspect-square object-cover" alt="cover"></div>
-                <div class="p-6">
-                    <div class="flex justify-between items-start mb-1">
-                        <h2 class="text-2xl font-bold text-gray-800">${song.title}</h2>
-                        <span class="text-xs text-gray-500 mt-2 font-medium">${dateStr} 제작</span>
-                    </div>
-                    <p class="text-sm text-gray-500 mb-4">작사/작곡: ${song.creator} | ${song.type}</p>
-                    ${audioPlayer} ${ytEmbed}
-                    <div class="space-y-4 mt-6">
-                        ${song.desc ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">📖 곡 설명 / 말씀</h4><p class="text-sm text-gray-700 bg-gray-50 p-4 rounded-xl leading-relaxed">${song.desc.replace(/\n/g, '<br>')}</p></div>` : ''}
-                        ${song.lyrics ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">🎤 가사</h4><p class="text-sm text-gray-700 bg-gray-50 p-4 rounded-xl whitespace-pre-line leading-relaxed">${song.lyrics}</p></div>` : ''}
-                        ${song.prompt ? `<div><h4 class="text-[11px] font-bold text-indigo-600 mb-1 tracking-widest uppercase">🛠️ 제작 정보</h4><p class="text-[11px] text-gray-500 bg-gray-100 p-4 rounded-xl whitespace-pre-line">${song.prompt}</p></div>` : ''}
-                    </div>
-                    <div class="mt-8 pt-4 border-t border-gray-100 flex justify-end gap-3">
-                        <button onclick="editSong('${id}')" class="text-xs text-indigo-500 hover:text-indigo-700 font-bold bg-indigo-50 px-3 py-1.5 rounded-lg transition">수정하기</button>
-                        <button onclick="deleteSong('${id}')" class="text-xs text-red-500 hover:text-red-700 font-bold bg-red-50 px-3 py-1.5 rounded-lg transition">삭제하기</button>
-                    </div>
-                </div>
-            `;
-            document.getElementById('modalContent').innerHTML = contentHtml;
-            document.getElementById('detailModal').classList.remove('hidden');
-        };
-
-        window.closeModal = () => {
-            document.getElementById('detailModal').classList.add('hidden');
-            document.getElementById('modalContent').innerHTML = '';
-        };
-
-        window.deleteSong = async (id) => {
-            const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
-            if (pwd === ADMIN_PASSWORD && confirm("정말 이 곡의 기록을 삭제하시겠습니까?")) {
-                await deleteDoc(doc(db, collectionName, id));
-                location.reload(); // 삭제 후 깔끔하게 리스트 새로고침
-            } else if (pwd !== ADMIN_PASSWORD && pwd !== null) {
-                alert("비밀번호가 일치하지 않습니다.");
-            }
-        };
-
-        window.editSong = (id) => {
-            const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
-            if (pwd !== ADMIN_PASSWORD) {
-                alert("비밀번호가 일치하지 않습니다.");
-                return;
-            }
-            const song = globalSongs.find(s => s.id === id);
-            if (!song) return;
-
-            const editHtml = `
-                <div class="p-6 bg-gray-50 rounded-2xl modal-content overflow-y-auto" style="max-height: 80vh;">
-                    <h2 class="text-xl font-bold text-indigo-700 mb-4 border-b pb-2">✏️ 곡 정보 수정하기</h2>
-                    <div class="space-y-4">
-                        <div class="flex gap-2">
-                            <select id="editType" class="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 bg-white text-sm outline-none">
-                                <option value="창작곡" ${song.type === '창작곡' ? 'selected' : ''}>창작곡</option>
-                                <option value="커버송" ${song.type === '커버송' ? 'selected' : ''}>커버송</option>
-                            </select>
-                            <input type="text" id="editTitle" value="${song.title}" class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="곡 제목">
-                        </div>
-                        <div class="flex gap-2">
-                            <input type="text" id="editCreator" value="${song.creator}" class="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="작사/작곡">
-                            <input type="date" id="editDate" value="${song.creationDate}" class="w-36 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm text-gray-600 bg-white outline-none">
-                        </div>
-                        <input type="text" id="editYoutube" value="${song.youtubeUrl || ''}" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="유튜브 주소 링크">
-                        
-                        <div class="p-3 bg-white border border-dashed border-gray-300 rounded-lg space-y-3">
-                            <div><label class="block text-[11px] font-bold text-gray-500 mb-1">🖼️ 새 타이틀 이미지</label><input type="file" id="editImage" accept="image/*" class="w-full text-xs file:bg-indigo-50 file:text-indigo-700"></div>
-                            <div><label class="block text-[11px] font-bold text-gray-500 mb-1">🎵 새 MP3 음원</label><input type="file" id="editMp3" accept="audio/mp3" class="w-full text-xs file:bg-indigo-50 file:text-indigo-700"></div>
-                        </div>
-
-                        <textarea id="editDesc" rows="2" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="곡 설명">${song.desc || ''}</textarea>
-                        <textarea id="editLyrics" rows="5" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="가사">${song.lyrics || ''}</textarea>
-                        <textarea id="editPrompt" rows="2" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-400 text-sm outline-none" placeholder="제작 정보">${song.prompt || ''}</textarea>
-                        
-                        <div class="flex gap-2 mt-4 pt-2 border-t border-gray-200">
-                            <button onclick="saveEdit('${id}')" id="saveEditBtn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition">저장 완료</button>
-                            <button onclick="openModal('${id}')" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 font-bold py-2.5 rounded-lg transition">취소</button>
-                        </div>
-                        <p id="editStatus" class="text-sm text-center text-indigo-600 font-bold hidden mt-2">수정 중입니다... ⏳</p>
-                    </div>
-                </div>
-            `;
-            document.getElementById('modalContent').innerHTML = editHtml;
-        };
-
-        window.saveEdit = async (id) => {
-            const song = globalSongs.find(s => s.id === id);
-            if (!song) return;
-
-            const title = document.getElementById('editTitle').value;
-            const creationDate = document.getElementById('editDate').value;
-            if (!title || !creationDate) { alert("제목과 제작일은 필수입니다!"); return; }
-
-            document.getElementById('saveEditBtn').classList.add('hidden');
-            document.getElementById('editStatus').classList.remove('hidden');
-
-            try {
-                let imageUrl = song.imageUrl; let thumbnailUrl = song.thumbnailUrl; let mp3Url = song.mp3Url;
-                const imageFile = document.getElementById('editImage').files[0];
-                const mp3File = document.getElementById('editMp3').files[0];
-
-                if (imageFile) {
-                    const timeStr = Date.now();
-                    const imageRef = ref(storage, `${collectionName}/images/${timeStr}_${imageFile.name}`);
-                    await uploadBytes(imageRef, imageFile);
-                    imageUrl = await getDownloadURL(imageRef);
-                    const thumbnailBlob = await generateThumbnail(imageFile);
-                    const thumbnailRef = ref(storage, `${collectionName}/thumbnails/${timeStr}_${imageFile.name}.jpg`);
-                    await uploadBytes(thumbnailRef, thumbnailBlob);
-                    thumbnailUrl = await getDownloadURL(thumbnailRef);
+                if (hasData) {
+                    container.innerHTML = videosHtml + sheetsHtml;
+                    const d = docSnap.data();
+                    if (d && d.sheetMusicUrl) {
+                        setTimeout(() => loadPdfToCanvas(d.sheetMusicUrl, 'pdf-container-past'), 100);
+                    }
+                } else {
+                    container.innerHTML = '<div class="flex items-center justify-center py-20"><p class="text-gray-400 font-bold">해당 파트에 등록된 영상이나 악보가 없습니다.</p></div>';
                 }
-                if (mp3File) {
-                    const mp3Ref = ref(storage, `${collectionName}/audio/${Date.now()}_${mp3File.name}`);
-                    await uploadBytes(mp3Ref, mp3File);
-                    mp3Url = await getDownloadURL(mp3Ref);
-                }
-
-                await updateDoc(doc(db, collectionName, id), {
-                    title: title, type: document.getElementById('editType').value, creator: document.getElementById('editCreator').value,
-                    creationDate: creationDate, youtubeUrl: document.getElementById('editYoutube').value,
-                    desc: document.getElementById('editDesc').value, lyrics: document.getElementById('editLyrics').value,
-                    prompt: document.getElementById('editPrompt').value, imageUrl: imageUrl, thumbnailUrl: thumbnailUrl, mp3Url: mp3Url
-                });
-
-                alert("성공적으로 수정되었습니다! ✨");
-                location.reload();
-            } catch (error) {
-                alert("수정 중 오류가 발생했습니다.");
-                document.getElementById('saveEditBtn').classList.remove('hidden');
-                document.getElementById('editStatus').classList.add('hidden');
+            } catch (e) {
+                container.innerHTML = '<div class="flex items-center justify-center py-20"><p class="text-red-400 font-bold">데이터 로드 실패.</p></div>';
             }
         };
     </script>
 </body>
-
 </html>
+
