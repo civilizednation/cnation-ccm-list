@@ -239,16 +239,46 @@ body{
 @media (prefers-reduced-motion: reduce){
   .eq.is-live span{ animation: none; transform: scaleY(0.5); }
 }
+.progress-hit{
+  padding: 9px 0;
+  margin: -9px 0;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
 .progress-track{
+  position: relative;
   height: 3px;
   border-radius: 2px;
   background: var(--screen-line);
-  overflow: hidden;
+  transition: height 100ms ease;
+}
+.progress-hit:hover .progress-track,
+.progress-hit.is-seeking .progress-track{
+  height: 5px;
 }
 .progress-fill{
+  position: relative;
   height: 100%;
   width: 0%;
   background: var(--accent);
+  border-radius: 2px;
+}
+.progress-fill::after{
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  transform: translate(50%, -50%) scale(0);
+  transition: transform 100ms ease;
+}
+.progress-hit:hover .progress-fill::after,
+.progress-hit.is-seeking .progress-fill::after{
+  transform: translate(50%, -50%) scale(1);
 }
 .progress-time{
   display: flex;

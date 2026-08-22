@@ -86,6 +86,7 @@ const els = {
   npSub: document.getElementById("npSub"),
   loadingHint: document.getElementById("loadingHint"),
   eq: Array.from(eqEl.children),
+  progressHit: document.getElementById("progressHit"),
   progressFill: document.getElementById("progressFill"),
   timeCur: document.getElementById("timeCur"),
   timeDur: document.getElementById("timeDur"),
@@ -356,10 +357,48 @@ function tickRealEqualizer() {
 }
 
 els.audio.addEventListener("timeupdate", () => {
+  if (isSeeking) return; // 드래그 중엔 실제 재생 위치 대신 미리보기 값을 유지한다
   const { currentTime, duration } = els.audio;
   els.progressFill.style.width = duration ? `${(currentTime / duration) * 100}%` : "0%";
   els.timeCur.textContent = formatTime(currentTime);
   els.timeDur.textContent = formatTime(duration);
+});
+
+// ---- 진행바 탐색(seek): 클릭은 즉시 이동, 드래그는 놓을 때 한 번만 실제로 이동 ----
+// (스트리밍 오디오라 움직일 때마다 매번 seek하면 매 프레임 네트워크 요청이 발생해 끊길 수 있다)
+let isSeeking = false;
+function fractionFromPointer(e) {
+  const rect = els.progressHit.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  return Math.min(1, Math.max(0, rect.width ? x / rect.width : 0));
+}
+function previewSeek(fraction) {
+  const duration = els.audio.duration;
+  els.progressFill.style.width = `${fraction * 100}%`;
+  if (Number.isFinite(duration)) els.timeCur.textContent = formatTime(fraction * duration);
+}
+els.progressHit.addEventListener("pointerdown", (e) => {
+  if (queuePos === -1 || !Number.isFinite(els.audio.duration)) return;
+  isSeeking = true;
+  els.progressHit.classList.add("is-seeking");
+  els.progressHit.setPointerCapture(e.pointerId);
+  previewSeek(fractionFromPointer(e));
+});
+els.progressHit.addEventListener("pointermove", (e) => {
+  if (!isSeeking) return;
+  previewSeek(fractionFromPointer(e));
+});
+function commitSeek(e) {
+  if (!isSeeking) return;
+  isSeeking = false;
+  els.progressHit.classList.remove("is-seeking");
+  const duration = els.audio.duration;
+  if (Number.isFinite(duration)) els.audio.currentTime = fractionFromPointer(e) * duration;
+}
+els.progressHit.addEventListener("pointerup", commitSeek);
+els.progressHit.addEventListener("pointercancel", () => {
+  isSeeking = false;
+  els.progressHit.classList.remove("is-seeking");
 });
 
 const LOADING_HINT_TEXT = "음원을 불러오고 있습니다…";
