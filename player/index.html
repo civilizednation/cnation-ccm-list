@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cnation CCM Player</title>
+<link rel="icon" type="image/x-icon" href="../favicon.ico">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="player.css">
+</head>
+<body>
+  <main class="page">
+    <a class="back-link" href="../index.html">&larr; 전체 곡 관리로 돌아가기</a>
+
+    <div class="device" id="device">
+      <div class="screen" id="screen" data-state="standby">
+
+        <div class="view view-standby" id="viewStandby">
+          <div class="crest"><span class="crest-sub">CNATION</span>CCM<br>PLAYER</div>
+          <div class="standby-sub" id="standbySub">곡을 불러오는 중&hellip;</div>
+          <div class="standby-hint">MENU 를 눌러 곡을 선택하세요</div>
+        </div>
+
+        <div class="view view-playing" id="viewPlaying" hidden>
+          <div class="art" id="art"></div>
+          <div class="np-body">
+            <div class="np-head">
+              <span class="np-index" id="npIndex">01 / 38 &middot; 최신순</span>
+              <span class="np-badge" id="npBadge">창작곡</span>
+            </div>
+            <div class="np-title" id="npTitle">&mdash;</div>
+            <div class="np-sub" id="npSub">&mdash;</div>
+            <div class="loading-hint" id="loadingHint">음원을 불러오고 있습니다&hellip;</div>
+            <div class="eq" id="eq" aria-hidden="true"></div>
+            <div class="progress">
+              <div class="progress-hit" id="progressHit">
+                <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+              </div>
+              <div class="progress-time">
+                <span id="timeCur">0:00</span>
+                <span id="timeDur">0:00</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="view view-library" id="viewLibrary" hidden>
+          <div class="lib-toolbar">
+            <div class="lib-toolbar-row">
+              <button class="lib-chip" id="sortNewBtn" type="button" data-sort="new">최신순</button>
+              <button class="lib-chip" id="sortOldBtn" type="button" data-sort="old">오래된순</button>
+              <button class="lib-chip" id="sortShuffleBtn" type="button" data-sort="shuffle">랜덤</button>
+              <button class="lib-chip lib-chip-repeat" id="repeatBtn" type="button" title="반복 모드 전환"></button>
+            </div>
+          </div>
+          <div class="lib-list" id="libList"></div>
+        </div>
+
+      </div>
+
+      <button class="ctrl ctrl-prev" id="btnPrev" type="button" aria-label="이전 곡"></button>
+      <button class="ctrl ctrl-play" id="btnPlay" type="button" aria-label="재생 또는 일시정지"></button>
+      <button class="ctrl ctrl-next" id="btnNext" type="button" aria-label="다음 곡"></button>
+      <button class="ctrl ctrl-menu" id="btnMenu" type="button" aria-label="전체 곡 목록 열기"></button>
+    </div>
+
+    <p class="hint-outside">cnation CCM Player &mdash; 은혜와 찬양의 기록을 잇달아 감상하기</p>
+  </main>
+
+  <audio id="audio" preload="none"></audio>
+
+  <script type="module" src="player.js"></script>
+</body>
+</html>
