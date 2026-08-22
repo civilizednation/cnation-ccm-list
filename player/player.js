@@ -108,6 +108,42 @@ let sortMode = readStoredMode(STORAGE_KEY_SORT, ["new", "old", "shuffle"], "new"
 let repeatMode = readStoredMode(STORAGE_KEY_REPEAT, ["all", "one"], "all");
 let libraryOpen = false;
 
+// ---- 실제 음향 분석(이퀄라이저) 지원 여부 감지 ----
+// Firebase Storage 버킷에 CORS가 열려 있어야 Web Audio API로 mp3를 분석할 수 있다.
+// CORS가 안 열려 있는 상태에서 재생용 <audio>에 crossOrigin을 걸면 로드 자체가 실패할
+// 수 있으므로, 별도의 "탐지용" Audio로 먼저 조용히 확인한 뒤에만 재생 경로에 반영한다.
+let corsSupported = false;
+let corsProbed = false;
+let audioCtx = null;
+let analyser = null;
+
+function probeCorsSupport(sampleUrl) {
+  if (corsProbed || !sampleUrl) return;
+  corsProbed = true;
+  const probe = new Audio();
+  probe.crossOrigin = "anonymous";
+  probe.preload = "metadata";
+  probe.addEventListener("loadedmetadata", () => { corsSupported = true; }, { once: true });
+  probe.src = sampleUrl;
+}
+
+function ensureAudioGraph() {
+  if (audioCtx) return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new Ctx();
+    const source = audioCtx.createMediaElementSource(els.audio);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    source.connect(analyser);
+    analyser.connect(audioCtx.destination);
+  } catch (e) {
+    console.warn("오디오 분석 그래프 연결 실패, CSS 애니메이션으로 대체:", e);
+    audioCtx = null;
+    analyser = null;
+  }
+}
+
 function formatTime(sec) {
   if (!Number.isFinite(sec)) return "0:00";
   const m = Math.floor(sec / 60);
@@ -222,6 +258,11 @@ function playAtQueuePos(pos, autoplay = true) {
   const dateStr = song.creationDate ? song.creationDate.split("-").join(". ") + "." : "";
   els.npSub.textContent = [song.creator, dateStr].filter(Boolean).join(" · ");
 
+  // CORS가 지원되는 걸로 확인된 세션에서만 crossOrigin을 걸어 실제 음향 분석을 시도한다
+  // (미확인/미지원 상태에서 걸면 로드 자체가 실패할 수 있어 재생을 우선한다).
+  if (corsSupported) {
+    els.audio.crossOrigin = "anonymous";
+  }
   els.audio.src = song.mp3Url || "";
   setScreenState("playing");
   if (autoplay) play();
@@ -234,9 +275,10 @@ function play() {
     return;
   }
   if (!els.audio.src) return;
-  // Firebase Storage(다른 도메인) mp3를 Web Audio API 그래프에 태우면 브라우저에 따라
-  // 무음으로 막히는 경우가 있어서, 재생은 <audio> 엘리먼트가 직접 하도록 둔다
-  // (이퀄라이저는 실제 음향 분석 대신 CSS 애니메이션으로 대체).
+  // CORS 미지원 상태에서는 <audio>가 Web Audio 그래프 없이 직접 재생한다 (항상 안전).
+  // CORS 지원이 확인된 뒤에만 그래프를 연결해 실제 음향 분석 이퀄라이저를 켠다.
+  if (corsSupported) ensureAudioGraph();
+  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
   els.audio.play().catch((err) => {
     console.error("재생 실패:", err);
     showPlaybackError();
@@ -285,10 +327,32 @@ function updatePlayIcon() {
   els.btnPlay.classList.toggle("is-playing", !els.audio.paused);
 }
 
-// 실제 음향 분석(Web Audio AnalyserNode) 대신 순수 CSS 애니메이션으로 이퀄라이저를 흉내낸다.
-// (교차 도메인 mp3를 Web Audio 그래프에 태우면 브라우저에 따라 재생 자체가 막히는 문제가 있어 제거함)
+// analyser가 연결돼 있으면(CORS 지원 확인됨) 실제 음향 데이터로 막대를 움직이고,
+// 아니면 CSS 애니메이션으로 대체한다.
 function updateEqualizer() {
-  eqEl.classList.toggle("is-live", !els.audio.paused);
+  const live = !els.audio.paused;
+  if (analyser) {
+    eqEl.classList.remove("is-live");
+  } else {
+    eqEl.classList.toggle("is-live", live);
+  }
+}
+
+function tickRealEqualizer() {
+  requestAnimationFrame(tickRealEqualizer);
+  if (!analyser) return;
+  if (els.audio.paused) {
+    els.eq.forEach((bar) => { bar.style.transform = "scaleY(0.06)"; });
+    return;
+  }
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(data);
+  const usableBins = Math.floor(data.length * 0.6);
+  const step = usableBins / els.eq.length;
+  els.eq.forEach((bar, i) => {
+    const v = data[Math.floor(i * step)] / 255;
+    bar.style.transform = `scaleY(${Math.max(0.06, v)})`;
+  });
 }
 
 els.audio.addEventListener("timeupdate", () => {
@@ -388,6 +452,7 @@ async function loadSongs() {
     updateSortChips();
     updateRepeatButton();
     els.standbySub.textContent = `${allSongs.length}곡 · 감상 준비완료`;
+    probeCorsSupport(allSongs[0].mp3Url);
   } catch (error) {
     console.error("곡 목록 로딩 에러:", error);
     els.standbySub.textContent = "곡을 불러오지 못했습니다. 새로고침 해주세요.";
@@ -395,4 +460,5 @@ async function loadSongs() {
 }
 
 setScreenState("standby");
+tickRealEqualizer();
 loadSongs();
