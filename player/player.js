@@ -107,9 +107,6 @@ let queuePos = -1;
 let sortMode = readStoredMode(STORAGE_KEY_SORT, ["new", "old", "shuffle"], "new");
 let repeatMode = readStoredMode(STORAGE_KEY_REPEAT, ["all", "one"], "all");
 let libraryOpen = false;
-let audioCtx = null;
-let analyser = null;
-let wantsPlaying = false;
 
 function formatTime(sec) {
   if (!Number.isFinite(sec)) return "0:00";
@@ -200,17 +197,6 @@ function renderLibrary() {
   });
 }
 
-function ensureAudioGraph() {
-  if (audioCtx) return;
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  audioCtx = new Ctx();
-  const source = audioCtx.createMediaElementSource(els.audio);
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 256;
-  source.connect(analyser);
-  analyser.connect(audioCtx.destination);
-}
-
 function playAtQueuePos(pos, autoplay = true) {
   if (queue.length === 0) return;
   queuePos = ((pos % queue.length) + queue.length) % queue.length;
@@ -237,7 +223,6 @@ function playAtQueuePos(pos, autoplay = true) {
   els.npSub.textContent = [song.creator, dateStr].filter(Boolean).join(" · ");
 
   els.audio.src = song.mp3Url || "";
-  wantsPlaying = autoplay;
   setScreenState("playing");
   if (autoplay) play();
   if (libraryOpen) renderLibrary();
@@ -249,13 +234,15 @@ function play() {
     return;
   }
   if (!els.audio.src) return;
-  wantsPlaying = true;
-  ensureAudioGraph();
-  if (audioCtx.state === "suspended") audioCtx.resume();
-  els.audio.play().catch(() => {});
+  // Firebase Storage(다른 도메인) mp3를 Web Audio API 그래프에 태우면 브라우저에 따라
+  // 무음으로 막히는 경우가 있어서, 재생은 <audio> 엘리먼트가 직접 하도록 둔다
+  // (이퀄라이저는 실제 음향 분석 대신 CSS 애니메이션으로 대체).
+  els.audio.play().catch((err) => {
+    console.error("재생 실패:", err);
+    showPlaybackError();
+  });
 }
 function pause() {
-  wantsPlaying = false;
   els.audio.pause();
 }
 function togglePlay() {
@@ -298,20 +285,10 @@ function updatePlayIcon() {
   els.btnPlay.classList.toggle("is-playing", !els.audio.paused);
 }
 
-function tickEqualizer() {
-  requestAnimationFrame(tickEqualizer);
-  if (!analyser || els.audio.paused) {
-    els.eq.forEach((bar) => { bar.style.transform = "scaleY(0.06)"; });
-    return;
-  }
-  const data = new Uint8Array(analyser.frequencyBinCount);
-  analyser.getByteFrequencyData(data);
-  const usableBins = Math.floor(data.length * 0.6);
-  const step = usableBins / els.eq.length;
-  els.eq.forEach((bar, i) => {
-    const v = data[Math.floor(i * step)] / 255;
-    bar.style.transform = `scaleY(${Math.max(0.06, v)})`;
-  });
+// 실제 음향 분석(Web Audio AnalyserNode) 대신 순수 CSS 애니메이션으로 이퀄라이저를 흉내낸다.
+// (교차 도메인 mp3를 Web Audio 그래프에 태우면 브라우저에 따라 재생 자체가 막히는 문제가 있어 제거함)
+function updateEqualizer() {
+  eqEl.classList.toggle("is-live", !els.audio.paused);
 }
 
 els.audio.addEventListener("timeupdate", () => {
@@ -321,8 +298,10 @@ els.audio.addEventListener("timeupdate", () => {
   els.timeDur.textContent = formatTime(duration);
 });
 
+const LOADING_HINT_TEXT = "음원을 불러오고 있습니다…";
 let loadingHintTimer = null;
 function showLoadingHint() {
+  els.loadingHint.textContent = LOADING_HINT_TEXT;
   clearTimeout(loadingHintTimer);
   loadingHintTimer = setTimeout(() => els.loadingHint.classList.add("visible"), 150);
 }
@@ -330,10 +309,18 @@ function hideLoadingHint() {
   clearTimeout(loadingHintTimer);
   els.loadingHint.classList.remove("visible");
 }
+function showPlaybackError() {
+  clearTimeout(loadingHintTimer);
+  els.loadingHint.textContent = "이 곡을 재생할 수 없습니다. 다음 곡으로 넘어가려면 ▶▶를 눌러주세요.";
+  els.loadingHint.classList.add("visible");
+}
 els.audio.addEventListener("loadstart", showLoadingHint);
 els.audio.addEventListener("canplay", hideLoadingHint);
 els.audio.addEventListener("playing", hideLoadingHint);
-els.audio.addEventListener("error", hideLoadingHint);
+els.audio.addEventListener("error", () => {
+  hideLoadingHint();
+  showPlaybackError();
+});
 
 els.audio.addEventListener("ended", () => {
   if (repeatMode === "one") {
@@ -343,8 +330,8 @@ els.audio.addEventListener("ended", () => {
     next();
   }
 });
-els.audio.addEventListener("play", updatePlayIcon);
-els.audio.addEventListener("pause", updatePlayIcon);
+els.audio.addEventListener("play", () => { updatePlayIcon(); updateEqualizer(); });
+els.audio.addEventListener("pause", () => { updatePlayIcon(); updateEqualizer(); });
 
 els.btnPrev.addEventListener("click", () => { playClick(); prev(); });
 els.btnNext.addEventListener("click", () => { playClick(); next(); });
@@ -408,5 +395,4 @@ async function loadSongs() {
 }
 
 setScreenState("standby");
-tickEqualizer();
 loadSongs();

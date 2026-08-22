@@ -223,7 +223,21 @@ body{
   border-radius: 0.5px;
   transform: scaleY(0.06);
   transform-origin: bottom;
-  transition: transform 80ms linear;
+  transition: transform 200ms ease;
+}
+/* 실제 음향 분석 대신, 재생 중일 때만 막대마다 다른 주기로 오르내리는 CSS 애니메이션으로
+   이퀄라이저 느낌을 낸다 (교차 도메인 mp3를 Web Audio 그래프에 태우지 않기 위함). */
+.eq.is-live span{ animation: eq-bounce 900ms ease-in-out infinite; }
+.eq.is-live span:nth-child(3n){ animation-duration: 720ms; animation-delay: -80ms; }
+.eq.is-live span:nth-child(3n+1){ animation-duration: 1080ms; animation-delay: -260ms; }
+.eq.is-live span:nth-child(4n){ animation-duration: 640ms; animation-delay: -420ms; }
+.eq.is-live span:nth-child(5n){ animation-duration: 980ms; animation-delay: -140ms; }
+@keyframes eq-bounce{
+  0%, 100% { transform: scaleY(0.12); }
+  50% { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce){
+  .eq.is-live span{ animation: none; transform: scaleY(0.5); }
 }
 .progress-track{
   height: 3px;
