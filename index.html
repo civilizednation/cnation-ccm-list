@@ -144,6 +144,20 @@
         </div>
     </div>
 
+    <div id="slowLoadModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl p-6 text-center">
+            <div class="text-3xl mb-3">📡</div>
+            <p class="text-sm text-gray-700 mb-5 leading-relaxed">네트워크 지연으로 곡 불러오기가 지연되고 있습니다.<br>다시 불러오기를 시도할까요?</p>
+            <div class="flex gap-2">
+                <button id="slowLoadCancelBtn" type="button"
+                    class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-lg transition">취소</button>
+                <button id="slowLoadWaitBtn" type="button"
+                    class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition">계속
+                    기다리기</button>
+            </div>
+        </div>
+    </div>
+
     <div id="detailModal" class="fixed inset-0 bg-black bg-opacity-70 hidden flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl relative flex flex-col modal-content"
             style="max-height: 85vh;">
@@ -252,58 +266,81 @@
             listDiv.insertAdjacentHTML('beforeend', itemHtml);
         }
 
-        // ★ 첫 화면 5개 가져오기 (단발성 요청) ★
-        async function loadSongsInitial(sortField, sortDirection, options = {}) {
+        // 곡은 항상 등록되어 있다는 전제이므로, 빈 결과/에러는 "곡이 없다"가 아니라
+        // "아직 서버 응답을 못 받은 상태"로 보고 성공할 때까지 계속 재시도한다.
+        // 대신 5초 넘게 안 되면 사용자에게 계속 기다릴지 물어본다 (무한정 조용히 기다리지 않음).
+        let loadToken = 0;
+        let slowLoadTimer = null;
+
+        function armSlowLoadTimer(myToken, delay) {
+            clearTimeout(slowLoadTimer);
+            slowLoadTimer = setTimeout(() => {
+                if (myToken === loadToken) {
+                    document.getElementById('slowLoadModal').classList.remove('hidden');
+                }
+            }, delay);
+        }
+        function hideSlowLoadModal() {
+            clearTimeout(slowLoadTimer);
+            document.getElementById('slowLoadModal').classList.add('hidden');
+        }
+
+        // ★ 첫 화면 5개 가져오기 ★ (성공할 때까지 재시도, 5초 후 계속/취소 확인)
+        async function loadSongsInitial(sortField, sortDirection) {
             const listDiv = document.getElementById('songList');
             const moreBtnContainer = document.getElementById('moreBtnContainer');
-            const retryCount = options.retryCount || 1;
-            const retryDelay = options.retryDelay || 0;
 
-            listDiv.innerHTML = '<p class="text-center text-gray-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i>서버에서 데이터를 부르는 중...</p>';
+            listDiv.innerHTML = '<p class="text-center text-gray-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i>곡을 불러오고 있습니다...</p>';
             moreBtnContainer.innerHTML = '';
             globalSongs = [];
             lastVisibleDoc = null;
 
-            try {
-                let snapshot = null;
+            const myToken = ++loadToken;
+            hideSlowLoadModal();
+            armSlowLoadTimer(myToken, 5000);
 
-                for (let attempt = 1; attempt <= retryCount; attempt++) {
-                    if (attempt > 1 && retryDelay > 0) {
-                        listDiv.innerHTML = '<p class="text-center text-gray-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i>다시 확인하는 중...</p>';
-                        await sleep(retryDelay);
-                    }
-
+            while (myToken === loadToken) {
+                try {
                     // DB 전체가 아니라, 정렬 기준에 맞춰서 딱 5개만 달라고 서버에 요청!
                     const q = query(collection(db, collectionName), orderBy(sortField, sortDirection), limit(FETCH_LIMIT));
-                    snapshot = await getDocs(q);
+                    const snapshot = await getDocs(q);
 
-                    if (!snapshot.empty) break;
+                    if (myToken !== loadToken) return; // 그 사이 취소되었거나 새 요청으로 대체됨
+
+                    if (!snapshot.empty) {
+                        hideSlowLoadModal();
+                        listDiv.innerHTML = '';
+                        lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1]; // 5번째 문서에 책갈피 꽂기
+
+                        snapshot.forEach((docSnap) => {
+                            const data = docSnap.data();
+                            globalSongs.push({ id: docSnap.id, ...data });
+                            appendSongToDOM(docSnap.id, data);
+                        });
+
+                        // 5개를 꽉 채워서 가져왔다면, 다음 곡이 더 있을 확률이 높으므로 버튼 생성
+                        if (snapshot.docs.length === FETCH_LIMIT) {
+                            renderMoreButton(sortField, sortDirection);
+                        }
+                        return;
+                    }
+                    // 빈 결과 -> 아직 못 불러온 것으로 보고 재시도
+                } catch (error) {
+                    console.error("불러오기 에러 (재시도함):", error);
                 }
-
-                listDiv.innerHTML = ''; // 로딩 문구 삭제
-
-                if (snapshot.empty) {
-                    listDiv.innerHTML = '<p class="text-center text-gray-400 py-4">등록된 곡이 없습니다. 새로고침을 한 번 눌러주세요.</p>';
-                    return;
-                }
-
-                lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1]; // 5번째 문서에 책갈피 꽂기
-
-                snapshot.forEach((docSnap) => {
-                    const data = docSnap.data();
-                    globalSongs.push({ id: docSnap.id, ...data });
-                    appendSongToDOM(docSnap.id, data);
-                });
-
-                // 5개를 꽉 채워서 가져왔다면, 다음 곡이 더 있을 확률이 높으므로 버튼 생성
-                if (snapshot.docs.length === FETCH_LIMIT) {
-                    renderMoreButton(sortField, sortDirection);
-                }
-            } catch (error) {
-                console.error("불러오기 에러:", error);
-                listDiv.innerHTML = '<p class="text-center text-red-400 py-4">네트워크 지연 발생. 새로고침 해주세요.</p>';
+                await sleep(1500);
             }
         }
+
+        document.getElementById('slowLoadWaitBtn').addEventListener('click', () => {
+            document.getElementById('slowLoadModal').classList.add('hidden');
+            armSlowLoadTimer(loadToken, 8000); // 계속 기다리기로 하면 조금 더 여유를 두고 다시 확인
+        });
+        document.getElementById('slowLoadCancelBtn').addEventListener('click', () => {
+            hideSlowLoadModal();
+            loadToken++; // 재시도 루프 종료
+            document.getElementById('songList').innerHTML = '<p class="text-center text-gray-400 py-4">곡을 불러오지 못했습니다. 네트워크 상태를 확인하고 새로고침(🔄)을 눌러주세요.</p>';
+        });
 
         function renderMoreButton(sortField, sortDirection) {
             const moreBtnContainer = document.getElementById('moreBtnContainer');
@@ -363,11 +400,7 @@
         document.getElementById('reloadBtn').addEventListener('click', async () => {
             if (isFetching) return;
             setReloading(true);
-            await sleep(700);
-            await loadSongsInitial(currentSortField, currentSortDirection, {
-                retryCount: 3,
-                retryDelay: 1200
-            });
+            await loadSongsInitial(currentSortField, currentSortDirection);
             setReloading(false);
         });
 
