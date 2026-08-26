@@ -122,6 +122,38 @@ body{
   color: var(--ink-dim);
   margin-top: 18px;
 }
+.standby-retry{
+  margin-top: 18px;
+  max-width: 200px;
+}
+.standby-retry.hidden{ display: none; }
+.standby-retry-msg{
+  font-size: 9.5px;
+  color: var(--accent-warm);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+.standby-retry-actions{
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+.standby-retry-btn{
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  color: var(--ink-dim);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--screen-line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.standby-retry-btn.primary{
+  color: var(--screen-bg);
+  background: var(--accent);
+  border-color: var(--accent);
+}
 
 /* ---- now playing ---- */
 .art{

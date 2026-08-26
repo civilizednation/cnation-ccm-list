@@ -76,6 +76,10 @@ const els = {
   screen: document.getElementById("screen"),
   standby: document.getElementById("viewStandby"),
   standbySub: document.getElementById("standbySub"),
+  standbyHint: document.getElementById("standbyHint"),
+  standbyRetry: document.getElementById("standbyRetry"),
+  retryWaitBtn: document.getElementById("retryWaitBtn"),
+  retryCancelBtn: document.getElementById("retryCancelBtn"),
   playing: document.getElementById("viewPlaying"),
   library: document.getElementById("viewLibrary"),
   libList: document.getElementById("libList"),
@@ -475,28 +479,68 @@ els.repeatBtn.addEventListener("click", () => {
 });
 
 // ---- Firestore에서 전체 곡(메타데이터만) 로드 ----
+// 곡은 항상 등록되어 있다는 전제이므로, 빈 결과/에러는 "곡이 없다"가 아니라
+// "아직 서버 응답을 못 받은 상태"로 보고 성공할 때까지 계속 재시도한다.
+// 대신 5초 넘게 안 되면 계속 기다릴지 물어본다 (무한정 조용히 기다리지 않음).
+let loadToken = 0;
+let slowLoadTimer = null;
+
+function armSlowLoadTimer(myToken, delay) {
+  clearTimeout(slowLoadTimer);
+  slowLoadTimer = setTimeout(() => {
+    if (myToken === loadToken) showStandbyRetryPrompt();
+  }, delay);
+}
+function showStandbyRetryPrompt() {
+  els.standbyRetry.classList.remove("hidden");
+  els.standbyHint.classList.add("hidden");
+}
+function hideStandbyRetryPrompt() {
+  els.standbyRetry.classList.add("hidden");
+  els.standbyHint.classList.remove("hidden");
+  clearTimeout(slowLoadTimer);
+}
+
 async function loadSongs() {
+  const myToken = ++loadToken;
+  hideStandbyRetryPrompt();
   els.standbySub.textContent = "곡을 불러오는 중…";
-  try {
-    const snapshot = await getDocs(collection(db, collectionName));
-    allSongs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-    songsById = new Map(allSongs.map((s) => [s.id, s]));
+  armSlowLoadTimer(myToken, 5000);
 
-    if (allSongs.length === 0) {
-      els.standbySub.textContent = "등록된 곡이 없습니다.";
-      return;
+  while (myToken === loadToken) {
+    try {
+      const snapshot = await getDocs(collection(db, collectionName));
+      if (myToken !== loadToken) return; // 그 사이 취소되었거나 새 요청으로 대체됨
+
+      if (!snapshot.empty) {
+        hideStandbyRetryPrompt();
+        allSongs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
+        songsById = new Map(allSongs.map((s) => [s.id, s]));
+        rebuildQueue(sortMode);
+        updateSortChips();
+        updateRepeatButton();
+        els.standbySub.textContent = `${allSongs.length}곡 · 감상 준비완료`;
+        probeCorsSupport(allSongs[0].mp3Url);
+        return;
+      }
+      // 빈 결과 -> 아직 못 불러온 것으로 보고 재시도
+    } catch (error) {
+      console.error("곡 목록 로딩 에러 (재시도함):", error);
     }
-
-    rebuildQueue(sortMode);
-    updateSortChips();
-    updateRepeatButton();
-    els.standbySub.textContent = `${allSongs.length}곡 · 감상 준비완료`;
-    probeCorsSupport(allSongs[0].mp3Url);
-  } catch (error) {
-    console.error("곡 목록 로딩 에러:", error);
-    els.standbySub.textContent = "곡을 불러오지 못했습니다. 새로고침 해주세요.";
+    await new Promise((r) => setTimeout(r, 1500));
   }
 }
+
+els.retryWaitBtn.addEventListener("click", () => {
+  els.standbyRetry.classList.add("hidden");
+  els.standbyHint.classList.remove("hidden");
+  armSlowLoadTimer(loadToken, 8000); // 계속 기다리기로 하면 조금 더 여유를 두고 다시 확인
+});
+els.retryCancelBtn.addEventListener("click", () => {
+  hideStandbyRetryPrompt();
+  loadToken++; // 재시도 루프 종료
+  els.standbySub.textContent = "곡을 불러오지 못했습니다. 새로고침해주세요.";
+});
 
 setScreenState("standby");
 tickRealEqualizer();
