@@ -173,7 +173,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         // ★ 핵심: onSnapshot(실시간) 버리고 getDocs(단발성), startAfter(진짜 커서) 도입 ★
-        import { getFirestore, collection, addDoc, query, orderBy, limit, startAfter, getDocs, deleteDoc, doc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { initializeFirestore, collection, addDoc, query, orderBy, limit, startAfter, getDocs, deleteDoc, doc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
         import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
 
         const firebaseConfig = {
@@ -187,7 +187,10 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        // 사내망/공용 와이파이 등에서 Firestore의 기본 스트리밍 연결이 막히면 요청이 응답도,
+        // 에러도 없이 계속 매달려 있을 수 있다. 항상 롱폴링을 써서 그런 네트워크에서도
+        // 요청이 확실히 끝나도록(성공하거나 실패하거나) 만든다.
+        const db = initializeFirestore(app, { experimentalForceLongPolling: true });
         const storage = getStorage(app);
         const collectionName = "cnation-ccm-list";
 
@@ -268,9 +271,16 @@
 
         // 곡은 항상 등록되어 있다는 전제이므로, 빈 결과/에러는 "곡이 없다"가 아니라
         // "아직 서버 응답을 못 받은 상태"로 보고 성공할 때까지 계속 재시도한다.
-        // 대신 5초 넘게 안 되면 사용자에게 계속 기다릴지 물어본다 (무한정 조용히 기다리지 않음).
+        // 안내 팝업은 5초 → 10초 → 20초 ... 로 점점 간격을 늘려가며 다시 묻는다
+        // (같은 간격으로 계속 물어보면 귀찮기만 하고, 정말 오래 걸리는 상황에선 매번 묻는 게 의미 없어서).
+        const ATTEMPT_TIMEOUT_MS = 8000; // 한 번의 요청이 응답도 에러도 없이 계속 매달리는 것을 방지
+        const RETRY_GAP_MS = 1500;       // 한 시도가 끝난 뒤 다음 시도까지 쉬는 간격
+        const PROMPT_START_MS = 5000;    // 첫 안내 팝업까지
+        const PROMPT_MAX_MS = 60000;     // 안내 팝업 간격의 상한
+
         let loadToken = 0;
         let slowLoadTimer = null;
+        let nextPromptDelay = PROMPT_START_MS;
 
         function armSlowLoadTimer(myToken, delay) {
             clearTimeout(slowLoadTimer);
@@ -284,8 +294,16 @@
             clearTimeout(slowLoadTimer);
             document.getElementById('slowLoadModal').classList.add('hidden');
         }
+        // Firestore 요청이 응답도 에러도 없이 무한정 매달리는 경우(스트리밍 연결이 막힌 네트워크에서
+        // 종종 발생)를 대비해, 정해진 시간 안에 안 끝나면 타임아웃으로 처리하고 다음 시도로 넘어간다.
+        function withTimeout(promise, ms) {
+            return Promise.race([
+                promise,
+                new Promise((_, reject) => setTimeout(() => reject(new Error('요청 타임아웃')), ms))
+            ]);
+        }
 
-        // ★ 첫 화면 5개 가져오기 ★ (성공할 때까지 재시도, 5초 후 계속/취소 확인)
+        // ★ 첫 화면 5개 가져오기 ★ (성공할 때까지 재시도, 5→10→20초... 간격으로 계속/취소 확인)
         async function loadSongsInitial(sortField, sortDirection) {
             const listDiv = document.getElementById('songList');
             const moreBtnContainer = document.getElementById('moreBtnContainer');
@@ -297,13 +315,14 @@
 
             const myToken = ++loadToken;
             hideSlowLoadModal();
-            armSlowLoadTimer(myToken, 5000);
+            nextPromptDelay = PROMPT_START_MS;
+            armSlowLoadTimer(myToken, nextPromptDelay);
 
             while (myToken === loadToken) {
                 try {
                     // DB 전체가 아니라, 정렬 기준에 맞춰서 딱 5개만 달라고 서버에 요청!
                     const q = query(collection(db, collectionName), orderBy(sortField, sortDirection), limit(FETCH_LIMIT));
-                    const snapshot = await getDocs(q);
+                    const snapshot = await withTimeout(getDocs(q), ATTEMPT_TIMEOUT_MS);
 
                     if (myToken !== loadToken) return; // 그 사이 취소되었거나 새 요청으로 대체됨
 
@@ -328,13 +347,14 @@
                 } catch (error) {
                     console.error("불러오기 에러 (재시도함):", error);
                 }
-                await sleep(1500);
+                await sleep(RETRY_GAP_MS);
             }
         }
 
         document.getElementById('slowLoadWaitBtn').addEventListener('click', () => {
             document.getElementById('slowLoadModal').classList.add('hidden');
-            armSlowLoadTimer(loadToken, 8000); // 계속 기다리기로 하면 조금 더 여유를 두고 다시 확인
+            nextPromptDelay = Math.min(nextPromptDelay * 2, PROMPT_MAX_MS); // 5 → 10 → 20 → 40 → 60초...
+            armSlowLoadTimer(loadToken, nextPromptDelay);
         });
         document.getElementById('slowLoadCancelBtn').addEventListener('click', () => {
             hideSlowLoadModal();
