@@ -12,9 +12,10 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-// 사내망/공용 와이파이 등 스트리밍(WebChannel) 연결이 막힌 네트워크에서도 동작하도록
-// 필요할 때만 자동으로 롱폴링으로 전환한다.
-const db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+// 사내망/공용 와이파이 등에서 Firestore의 기본 스트리밍 연결이 막히면 요청이 응답도,
+// 에러도 없이 계속 매달려 있을 수 있다(자동 감지는 감지 자체가 막힐 수 있어 신뢰할 수 없음).
+// 항상 롱폴링을 써서 그런 네트워크에서도 요청이 확실히 끝나도록(성공하거나 실패하거나) 만든다.
+const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 const collectionName = "cnation-ccm-list";
 
 const SORT_LABELS = { new: "최신순", old: "오래된순", shuffle: "랜덤" };
@@ -481,9 +482,15 @@ els.repeatBtn.addEventListener("click", () => {
 // ---- Firestore에서 전체 곡(메타데이터만) 로드 ----
 // 곡은 항상 등록되어 있다는 전제이므로, 빈 결과/에러는 "곡이 없다"가 아니라
 // "아직 서버 응답을 못 받은 상태"로 보고 성공할 때까지 계속 재시도한다.
-// 대신 5초 넘게 안 되면 계속 기다릴지 물어본다 (무한정 조용히 기다리지 않음).
+// 안내는 5초 → 10초 → 20초 ... 로 점점 간격을 늘려가며 다시 묻는다.
+const ATTEMPT_TIMEOUT_MS = 8000; // 한 번의 요청이 응답도 에러도 없이 계속 매달리는 것을 방지
+const RETRY_GAP_MS = 1500;       // 한 시도가 끝난 뒤 다음 시도까지 쉬는 간격
+const PROMPT_START_MS = 5000;    // 첫 안내까지
+const PROMPT_MAX_MS = 60000;     // 안내 간격의 상한
+
 let loadToken = 0;
 let slowLoadTimer = null;
+let nextPromptDelay = PROMPT_START_MS;
 
 function armSlowLoadTimer(myToken, delay) {
   clearTimeout(slowLoadTimer);
@@ -500,16 +507,25 @@ function hideStandbyRetryPrompt() {
   els.standbyHint.classList.remove("hidden");
   clearTimeout(slowLoadTimer);
 }
+// Firestore 요청이 응답도 에러도 없이 무한정 매달리는 경우(스트리밍 연결이 막힌 네트워크에서
+// 종종 발생)를 대비해, 정해진 시간 안에 안 끝나면 타임아웃으로 처리하고 다음 시도로 넘어간다.
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("요청 타임아웃")), ms))
+  ]);
+}
 
 async function loadSongs() {
   const myToken = ++loadToken;
   hideStandbyRetryPrompt();
   els.standbySub.textContent = "곡을 불러오는 중…";
-  armSlowLoadTimer(myToken, 5000);
+  nextPromptDelay = PROMPT_START_MS;
+  armSlowLoadTimer(myToken, nextPromptDelay);
 
   while (myToken === loadToken) {
     try {
-      const snapshot = await getDocs(collection(db, collectionName));
+      const snapshot = await withTimeout(getDocs(collection(db, collectionName)), ATTEMPT_TIMEOUT_MS);
       if (myToken !== loadToken) return; // 그 사이 취소되었거나 새 요청으로 대체됨
 
       if (!snapshot.empty) {
@@ -527,14 +543,15 @@ async function loadSongs() {
     } catch (error) {
       console.error("곡 목록 로딩 에러 (재시도함):", error);
     }
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, RETRY_GAP_MS));
   }
 }
 
 els.retryWaitBtn.addEventListener("click", () => {
   els.standbyRetry.classList.add("hidden");
   els.standbyHint.classList.remove("hidden");
-  armSlowLoadTimer(loadToken, 8000); // 계속 기다리기로 하면 조금 더 여유를 두고 다시 확인
+  nextPromptDelay = Math.min(nextPromptDelay * 2, PROMPT_MAX_MS); // 5 → 10 → 20 → 40 → 60초...
+  armSlowLoadTimer(loadToken, nextPromptDelay);
 });
 els.retryCancelBtn.addEventListener("click", () => {
   hideStandbyRetryPrompt();
