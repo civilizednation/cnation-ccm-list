@@ -1,22 +1,5 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { initializeFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyCTwOAC_LrrKH8CKepUOTf0pyd9qRv4y_8",
-  authDomain: "cnation-project.firebaseapp.com",
-  projectId: "cnation-project",
-  storageBucket: "cnation-project.firebasestorage.app",
-  messagingSenderId: "1004154104261",
-  appId: "1:1004154104261:web:0eac4c7ded38262ae5c3ac",
-  measurementId: "G-7PW1NSP5EQ"
-};
-
-const app = initializeApp(firebaseConfig);
-// 사내망/공용 와이파이 등에서 Firestore의 기본 스트리밍 연결이 막히면 요청이 응답도,
-// 에러도 없이 계속 매달려 있을 수 있다(자동 감지는 감지 자체가 막힐 수 있어 신뢰할 수 없음).
-// 항상 롱폴링을 써서 그런 네트워크에서도 요청이 확실히 끝나도록(성공하거나 실패하거나) 만든다.
-const db = initializeFirestore(app, { experimentalForceLongPolling: true });
-const collectionName = "cnation-ccm-list";
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-lite.js";
+import { db, collectionName, fetchPatiently, readCache, writeCache, toPlainSong } from "../firebase-client.js";
 
 const SORT_LABELS = { new: "최신순", old: "오래된순", shuffle: "랜덤" };
 const STORAGE_KEY_SORT = "ccmPlayer.sortMode";
@@ -481,12 +464,12 @@ els.repeatBtn.addEventListener("click", () => {
 
 // ---- Firestore에서 전체 곡(메타데이터만) 로드 ----
 // 곡은 항상 등록되어 있다는 전제이므로, 빈 결과/에러는 "곡이 없다"가 아니라
-// "아직 서버 응답을 못 받은 상태"로 보고 성공할 때까지 계속 재시도한다.
-// 안내는 5초 → 10초 → 20초 ... 로 점점 간격을 늘려가며 다시 묻는다.
-const ATTEMPT_TIMEOUT_MS = 8000; // 한 번의 요청이 응답도 에러도 없이 계속 매달리는 것을 방지
-const RETRY_GAP_MS = 1500;       // 한 시도가 끝난 뒤 다음 시도까지 쉬는 간격
+// "아직 서버 응답을 못 받은 상태"로 보고 성공할 때까지 계속 시도한다(fetchPatiently 참고 — 진행 중인 요청은 버리지 않음).
+// 마지막으로 받은 목록이 기기에 저장돼 있으면 서버 응답 전에 바로 감상을 시작할 수 있게 한다.
+// 안내는 5초 → 10초 → 20초 ... 로 점점 간격을 늘려가며 다시 묻는다(저장된 목록이 없을 때만).
 const PROMPT_START_MS = 5000;    // 첫 안내까지
 const PROMPT_MAX_MS = 60000;     // 안내 간격의 상한
+const SONGS_CACHE_KEY = "ccmPlayer.songsCache";
 
 let loadToken = 0;
 let slowLoadTimer = null;
@@ -507,44 +490,44 @@ function hideStandbyRetryPrompt() {
   els.standbyHint.classList.remove("hidden");
   clearTimeout(slowLoadTimer);
 }
-// Firestore 요청이 응답도 에러도 없이 무한정 매달리는 경우(스트리밍 연결이 막힌 네트워크에서
-// 종종 발생)를 대비해, 정해진 시간 안에 안 끝나면 타임아웃으로 처리하고 다음 시도로 넘어간다.
-function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error("요청 타임아웃")), ms))
-  ]);
+
+function applySongs(songs) {
+  const sameIds = allSongs.length === songs.length && songs.every((s) => songsById.has(s.id));
+  allSongs = songs;
+  songsById = new Map(allSongs.map((s) => [s.id, s]));
+  // 곡 구성이 그대로면 재생 순서(특히 랜덤 순서)를 흔들지 않는다.
+  if (!sameIds || queue.length === 0) rebuildQueue(sortMode);
+  updateSortChips();
+  updateRepeatButton();
+  if (libraryOpen) renderLibrary();
+  els.standbySub.textContent = `${allSongs.length}곡 · 감상 준비완료`;
+  probeCorsSupport(allSongs[0]?.mp3Url);
 }
 
 async function loadSongs() {
   const myToken = ++loadToken;
   hideStandbyRetryPrompt();
-  els.standbySub.textContent = "곡을 불러오는 중…";
-  nextPromptDelay = PROMPT_START_MS;
-  armSlowLoadTimer(myToken, nextPromptDelay);
 
-  while (myToken === loadToken) {
-    try {
-      const snapshot = await withTimeout(getDocs(collection(db, collectionName)), ATTEMPT_TIMEOUT_MS);
-      if (myToken !== loadToken) return; // 그 사이 취소되었거나 새 요청으로 대체됨
-
-      if (!snapshot.empty) {
-        hideStandbyRetryPrompt();
-        allSongs = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
-        songsById = new Map(allSongs.map((s) => [s.id, s]));
-        rebuildQueue(sortMode);
-        updateSortChips();
-        updateRepeatButton();
-        els.standbySub.textContent = `${allSongs.length}곡 · 감상 준비완료`;
-        probeCorsSupport(allSongs[0].mp3Url);
-        return;
-      }
-      // 빈 결과 -> 아직 못 불러온 것으로 보고 재시도
-    } catch (error) {
-      console.error("곡 목록 로딩 에러 (재시도함):", error);
-    }
-    await new Promise((r) => setTimeout(r, RETRY_GAP_MS));
+  const cached = readCache(SONGS_CACHE_KEY);
+  if (cached) {
+    applySongs(cached); // 저장된 목록으로 바로 시작, 최신 목록은 뒤에서 받아와 조용히 반영
+  } else {
+    els.standbySub.textContent = "곡을 불러오는 중…";
+    nextPromptDelay = PROMPT_START_MS;
+    armSlowLoadTimer(myToken, nextPromptDelay);
   }
+
+  const snapshot = await fetchPatiently(async () => {
+    const snap = await getDocs(collection(db, collectionName));
+    return snap.empty ? null : snap;
+  }, () => myToken === loadToken);
+
+  if (!snapshot || myToken !== loadToken) return; // 취소되었거나 새 요청으로 대체됨
+
+  hideStandbyRetryPrompt();
+  const songs = snapshot.docs.map(toPlainSong);
+  writeCache(SONGS_CACHE_KEY, songs);
+  applySongs(songs);
 }
 
 els.retryWaitBtn.addEventListener("click", () => {
@@ -555,7 +538,7 @@ els.retryWaitBtn.addEventListener("click", () => {
 });
 els.retryCancelBtn.addEventListener("click", () => {
   hideStandbyRetryPrompt();
-  loadToken++; // 재시도 루프 종료
+  loadToken++; // 시도 중단
   els.standbySub.textContent = "곡을 불러오지 못했습니다. 새로고침해주세요.";
 });
 

@@ -21,8 +21,18 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="cnation CCM">
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Tailwind: 개발용 Play CDN(실행 중 CSS 생성, 화면 표시를 막음) 대신 미리 빌드한 CSS 파일을 쓴다.
+         새 Tailwind 클래스를 쓰면 tailwind.config.js 맨 위의 명령으로 다시 빌드해야 한다. -->
+    <link rel="stylesheet" href="./tailwind.css">
+    <!-- Firebase 연결을 미리 열어둬서 첫 요청의 연결 준비 시간을 줄인다 -->
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+    <link rel="modulepreload" href="./firebase-client.js">
+    <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js">
+    <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-lite.js">
+    <link rel="preload" as="image" href="./cnation-ccm.webp">
+    <!-- 아이콘 폰트는 화면 표시를 막지 않도록 비동기로 불러온다 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"></noscript>
     <style>
         .modal-content {
             max-height: 85vh;
@@ -38,7 +48,7 @@
         <div
             class="relative rounded-2xl shadow-lg mb-8 overflow-hidden bg-gray-800 flex items-center justify-center min-h-[180px]">
             <div class="absolute inset-0 bg-cover bg-center bg-no-repeat"
-                style="background-image: url('./cnation-ccm.png');"></div>
+                style="background-image: url('./cnation-ccm.webp');"></div>
             <div class="absolute inset-0 bg-black/40 backdrop-blur-[2px]"></div>
             <div class="relative z-10 p-6 text-center w-full">
                 <h1
@@ -75,7 +85,7 @@
                 </select>
             </div>
 
-            <div id="songList"></div>
+            <div id="songList"><p class="text-center text-gray-400 py-4">곡을 불러오고 있습니다...</p></div>
 
             <div id="moreBtnContainer" class="mt-4"></div>
         </div>
@@ -172,28 +182,8 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        // ★ 핵심: onSnapshot(실시간) 버리고 getDocs(단발성), startAfter(진짜 커서) 도입 ★
-        import { initializeFirestore, collection, addDoc, query, orderBy, limit, startAfter, getDocs, deleteDoc, doc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyCTwOAC_LrrKH8CKepUOTf0pyd9qRv4y_8",
-            authDomain: "cnation-project.firebaseapp.com",
-            projectId: "cnation-project",
-            storageBucket: "cnation-project.firebasestorage.app",
-            messagingSenderId: "1004154104261",
-            appId: "1:1004154104261:web:0eac4c7ded38262ae5c3ac",
-            measurementId: "G-7PW1NSP5EQ"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        // 사내망/공용 와이파이 등에서 Firestore의 기본 스트리밍 연결이 막히면 요청이 응답도,
-        // 에러도 없이 계속 매달려 있을 수 있다. 항상 롱폴링을 써서 그런 네트워크에서도
-        // 요청이 확실히 끝나도록(성공하거나 실패하거나) 만든다.
-        const db = initializeFirestore(app, { experimentalForceLongPolling: true });
-        const storage = getStorage(app);
-        const collectionName = "cnation-ccm-list";
+        import { collection, addDoc, query, orderBy, limit, startAfter, getDocs, deleteDoc, doc, serverTimestamp, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-lite.js";
+        import { db, collectionName, loadStorage, fetchPatiently, readCache, writeCache, toPlainSong } from "./firebase-client.js";
 
         let globalSongs = [];
         let lastVisibleDoc = null; // 서버에서 다음 5개를 가져오기 위한 '책갈피' 역할
@@ -226,10 +216,6 @@
         function getTitleInitial(data) {
             const sourceText = (data.title || '').replace(/\s/g, '');
             return escapeHTML(Array.from(sourceText)[0] || '?');
-        }
-
-        function sleep(ms) {
-            return new Promise((resolve) => setTimeout(resolve, ms));
         }
 
         function setReloading(isReloading) {
@@ -271,11 +257,9 @@
         }
 
         // 곡은 항상 등록되어 있다는 전제이므로, 빈 결과/에러는 "곡이 없다"가 아니라
-        // "아직 서버 응답을 못 받은 상태"로 보고 성공할 때까지 계속 재시도한다.
-        // 안내 팝업은 5초 → 10초 → 20초 ... 로 점점 간격을 늘려가며 다시 묻는다
-        // (같은 간격으로 계속 물어보면 귀찮기만 하고, 정말 오래 걸리는 상황에선 매번 묻는 게 의미 없어서).
-        const ATTEMPT_TIMEOUT_MS = 8000; // 한 번의 요청이 응답도 에러도 없이 계속 매달리는 것을 방지
-        const RETRY_GAP_MS = 1500;       // 한 시도가 끝난 뒤 다음 시도까지 쉬는 간격
+        // "아직 서버 응답을 못 받은 상태"로 보고 성공할 때까지 계속 시도한다(fetchPatiently 참고 — 진행 중인 요청은 버리지 않음).
+        // 마지막으로 받은 목록이 기기에 저장돼 있으면 서버 응답을 기다리지 않고 그것부터 바로 보여준다.
+        // 안내 팝업은 5초 → 10초 → 20초 ... 로 점점 간격을 늘려가며 다시 묻는다(저장된 목록이 없을 때만).
         const PROMPT_START_MS = 5000;    // 첫 안내 팝업까지
         const PROMPT_MAX_MS = 60000;     // 안내 팝업 간격의 상한
 
@@ -295,60 +279,76 @@
             clearTimeout(slowLoadTimer);
             document.getElementById('slowLoadModal').classList.add('hidden');
         }
-        // Firestore 요청이 응답도 에러도 없이 무한정 매달리는 경우(스트리밍 연결이 막힌 네트워크에서
-        // 종종 발생)를 대비해, 정해진 시간 안에 안 끝나면 타임아웃으로 처리하고 다음 시도로 넘어간다.
-        function withTimeout(promise, ms) {
-            return Promise.race([
-                promise,
-                new Promise((_, reject) => setTimeout(() => reject(new Error('요청 타임아웃')), ms))
-            ]);
+
+        const listCacheKey = (sortField, sortDirection) => `ccm.list.${sortField}_${sortDirection}`;
+        // 곡 등록/수정/삭제 후에는 저장된 목록이 옛날 것이 되므로 지운다.
+        function clearListCache() {
+            try {
+                Object.keys(localStorage).filter((k) => k.startsWith('ccm.list.') || k === 'ccmPlayer.songsCache')
+                    .forEach((k) => localStorage.removeItem(k));
+            } catch { /* 무시 */ }
         }
 
-        // ★ 첫 화면 5개 가져오기 ★ (성공할 때까지 재시도, 5→10→20초... 간격으로 계속/취소 확인)
+        function renderSongs(songs) {
+            const listDiv = document.getElementById('songList');
+            listDiv.innerHTML = '';
+            globalSongs = [];
+            songs.forEach((song) => {
+                globalSongs.push(song);
+                const { id, ...data } = song;
+                appendSongToDOM(id, data);
+            });
+        }
+
+        function setSyncNotice(text) {
+            document.getElementById('moreBtnContainer').innerHTML = text
+                ? `<p class="text-center text-xs text-gray-400 mt-2"><i class="fas fa-spinner fa-spin mr-1"></i>${text}</p>`
+                : '';
+        }
+
+        // ★ 첫 화면 5개 가져오기 ★
         async function loadSongsInitial(sortField, sortDirection) {
             const listDiv = document.getElementById('songList');
-            const moreBtnContainer = document.getElementById('moreBtnContainer');
+            const cacheKey = listCacheKey(sortField, sortDirection);
+            const cached = readCache(cacheKey);
 
-            listDiv.innerHTML = '<p class="text-center text-gray-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i>곡을 불러오고 있습니다...</p>';
-            moreBtnContainer.innerHTML = '';
-            globalSongs = [];
             lastVisibleDoc = null;
-
             const myToken = ++loadToken;
             hideSlowLoadModal();
-            nextPromptDelay = PROMPT_START_MS;
-            armSlowLoadTimer(myToken, nextPromptDelay);
 
-            while (myToken === loadToken) {
-                try {
-                    // DB 전체가 아니라, 정렬 기준에 맞춰서 딱 5개만 달라고 서버에 요청!
-                    const q = query(collection(db, collectionName), orderBy(sortField, sortDirection), limit(FETCH_LIMIT));
-                    const snapshot = await withTimeout(getDocs(q), ATTEMPT_TIMEOUT_MS);
+            if (cached) {
+                // 저장된 목록을 즉시 표시하고, 뒤에서 최신 목록을 조용히 받아온다.
+                // ('더 보기'는 서버 책갈피가 있어야 하므로 최신 목록을 받은 뒤에 표시)
+                renderSongs(cached);
+                setSyncNotice('최신 목록 확인 중...');
+            } else {
+                listDiv.innerHTML = '<p class="text-center text-gray-400 py-4"><i class="fas fa-spinner fa-spin mr-2"></i>곡을 불러오고 있습니다...</p>';
+                setSyncNotice('');
+                globalSongs = [];
+                nextPromptDelay = PROMPT_START_MS;
+                armSlowLoadTimer(myToken, nextPromptDelay);
+            }
 
-                    if (myToken !== loadToken) return; // 그 사이 취소되었거나 새 요청으로 대체됨
+            // DB 전체가 아니라, 정렬 기준에 맞춰서 딱 5개만 달라고 서버에 요청!
+            const q = query(collection(db, collectionName), orderBy(sortField, sortDirection), limit(FETCH_LIMIT));
+            const snapshot = await fetchPatiently(async () => {
+                const snap = await getDocs(q);
+                return snap.empty ? null : snap;
+            }, () => myToken === loadToken);
 
-                    if (!snapshot.empty) {
-                        hideSlowLoadModal();
-                        listDiv.innerHTML = '';
-                        lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1]; // 5번째 문서에 책갈피 꽂기
+            if (!snapshot || myToken !== loadToken) return; // 취소되었거나 새 요청으로 대체됨
 
-                        snapshot.forEach((docSnap) => {
-                            const data = docSnap.data();
-                            globalSongs.push({ id: docSnap.id, ...data });
-                            appendSongToDOM(docSnap.id, data);
-                        });
+            hideSlowLoadModal();
+            const songs = snapshot.docs.map(toPlainSong);
+            writeCache(cacheKey, songs);
+            renderSongs(songs);
+            lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1]; // 5번째 문서에 책갈피 꽂기
 
-                        // 5개를 꽉 채워서 가져왔다면, 다음 곡이 더 있을 확률이 높으므로 버튼 생성
-                        if (snapshot.docs.length === FETCH_LIMIT) {
-                            renderMoreButton(sortField, sortDirection);
-                        }
-                        return;
-                    }
-                    // 빈 결과 -> 아직 못 불러온 것으로 보고 재시도
-                } catch (error) {
-                    console.error("불러오기 에러 (재시도함):", error);
-                }
-                await sleep(RETRY_GAP_MS);
+            // 5개를 꽉 채워서 가져왔다면, 다음 곡이 더 있을 확률이 높으므로 버튼 생성
+            if (snapshot.docs.length === FETCH_LIMIT) {
+                renderMoreButton(sortField, sortDirection);
+            } else {
+                setSyncNotice('');
             }
         }
 
@@ -359,7 +359,7 @@
         });
         document.getElementById('slowLoadCancelBtn').addEventListener('click', () => {
             hideSlowLoadModal();
-            loadToken++; // 재시도 루프 종료
+            loadToken++; // 시도 중단
             document.getElementById('songList').innerHTML = '<p class="text-center text-gray-400 py-4">곡을 불러오지 못했습니다. 네트워크 상태를 확인하고 새로고침(🔄)을 눌러주세요.</p>';
         });
 
@@ -390,10 +390,10 @@
 
                 if (!snapshot.empty) {
                     lastVisibleDoc = snapshot.docs[snapshot.docs.length - 1]; // 책갈피 업데이트
-                    snapshot.forEach((docSnap) => {
-                        const data = docSnap.data();
-                        globalSongs.push({ id: docSnap.id, ...data });
-                        appendSongToDOM(docSnap.id, data);
+                    snapshot.docs.map(toPlainSong).forEach((song) => {
+                        globalSongs.push(song);
+                        const { id, ...data } = song;
+                        appendSongToDOM(id, data);
                     });
                 }
 
@@ -473,6 +473,7 @@
             document.getElementById('uploadStatus').classList.remove('hidden');
 
             try {
+                const { storage, ref, uploadBytes, getDownloadURL } = await loadStorage();
                 const timeStr = Date.now();
                 const originalImageRef = ref(storage, `${collectionName}/images/${timeStr}_${imageFile.name}`);
                 await uploadBytes(originalImageRef, imageFile);
@@ -501,7 +502,7 @@
                 });
 
                 alert("성공적으로 곡이 등록되었습니다! 🎉");
-                location.reload();
+                clearListCache(); location.reload();
             } catch (error) {
                 alert("업로드 중 에러가 발생했습니다.");
                 document.getElementById('addBtn').classList.remove('hidden');
@@ -555,7 +556,7 @@
             const pwd = prompt("관리자 권한 확인: 비밀번호 4자리를 입력하세요");
             if (pwd === ADMIN_PASSWORD && confirm("정말 이 곡의 기록을 삭제하시겠습니까?")) {
                 await deleteDoc(doc(db, collectionName, id));
-                location.reload(); // 삭제 후 깔끔하게 리스트 새로고침
+                clearListCache(); location.reload(); // 삭제 후 깔끔하게 리스트 새로고침
             } else if (pwd !== ADMIN_PASSWORD && pwd !== null) {
                 alert("비밀번호가 일치하지 않습니다.");
             }
@@ -622,6 +623,7 @@
                 let imageUrl = song.imageUrl; let thumbnailUrl = song.thumbnailUrl; let mp3Url = song.mp3Url;
                 const imageFile = document.getElementById('editImage').files[0];
                 const mp3File = document.getElementById('editMp3').files[0];
+                const { storage, ref, uploadBytes, getDownloadURL } = (imageFile || mp3File) ? await loadStorage() : {};
 
                 if (imageFile) {
                     const timeStr = Date.now();
@@ -647,7 +649,7 @@
                 });
 
                 alert("성공적으로 수정되었습니다! ✨");
-                location.reload();
+                clearListCache(); location.reload();
             } catch (error) {
                 alert("수정 중 오류가 발생했습니다.");
                 document.getElementById('saveEditBtn').classList.remove('hidden');
